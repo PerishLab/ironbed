@@ -1,10 +1,12 @@
-use super::{Input, media};
+use super::{
+    Input,
+    guest::{Guest, Spec},
+    media,
+};
 use serde_json::Value;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
-use std::thread;
-use std::time::{Duration, Instant};
+use std::process::Command;
 
 pub(super) struct Qemu {
     base: PathBuf,
@@ -15,18 +17,6 @@ pub(super) struct Qemu {
     pub(super) image: String,
     pub(super) seal: String,
     pub(super) origin: String,
-    cube: u16,
-    ssh: u16,
-}
-
-struct Seat<'a> {
-    code: &'a Path,
-    vars: &'a Path,
-    overlay: &'a Path,
-    state: &'a Path,
-    media: &'a Path,
-    seed: &'a Path,
-    serial: &'a Path,
     cube: u16,
     ssh: u16,
 }
@@ -88,6 +78,11 @@ impl Qemu {
     }
 
     pub(super) fn run(&self, name: &str, action: &str) -> Vec<Value> {
+        self.spawn(name, action).finish();
+        self.frames(name)
+    }
+
+    pub(super) fn spawn(&self, name: &str, action: &str) -> Guest {
         assert!(
             name.bytes()
                 .all(|byte| byte.is_ascii_lowercase() || byte == b'-'),
@@ -122,9 +117,10 @@ impl Qemu {
             "cloud seed",
         );
         let serial = seat.path().join("serial.log");
-        let mut child = launch(
+        Guest::new(
             name,
-            Seat {
+            seat,
+            Spec {
                 code: &self.code,
                 vars: &vars,
                 overlay: &overlay,
@@ -135,10 +131,10 @@ impl Qemu {
                 cube: self.cube,
                 ssh: self.ssh,
             },
-        );
-        reap(&mut child, &serial);
-        clean(self.cube);
-        clean(self.ssh);
+        )
+    }
+
+    pub(super) fn frames(&self, name: &str) -> Vec<Value> {
         let bytes = read(&self.state, &format!("/frames-{name}.ndjson"));
         bytes
             .split(|byte| *byte == b'\n')
@@ -156,92 +152,6 @@ fn cloud(name: &str, action: &str) -> String {
     format!(
         "#cloud-config\nbootcmd:\n  - [mkdir, -p, /state, /dut]\nruncmd:\n  - [mount, -L, IRONSTATE, /state]\n  - [mount, -o, ro, -L, IRONMEDIA, /dut]\n  - [sh, -c, '/dut/ironbed run --seat /dut/seat.json < /dut/{action}.json > /state/frames-{name}.ndjson 2> /state/stderr-{name}.log']\n  - [sync]\n  - [poweroff]\n"
     )
-}
-
-fn launch(name: &str, seat: Seat<'_>) -> Child {
-    let network = format!(
-        "user,restrict=on,id=net0,guestfwd=tcp:10.0.2.100:{}-cmd:/bin/nc -q 0 127.0.0.1 {},guestfwd=tcp:10.0.2.100:{}-cmd:/bin/nc -q 0 127.0.0.1 {}",
-        seat.cube, seat.cube, seat.ssh, seat.ssh
-    );
-    Command::new("qemu-system-x86_64")
-        .args(["-name", &format!("ironbed-{name}")])
-        .args(["-machine", "q35", "-accel", "tcg,thread=multi"])
-        .args(["-cpu", "qemu64"])
-        .args(["-smp", "2", "-m", "2048"])
-        .args(["-drive", &flash(seat.code, 0, true)])
-        .args(["-drive", &flash(seat.vars, 1, false)])
-        .args(["-drive", &drive(seat.overlay, "qcow2", false)])
-        .args(["-drive", &drive(seat.state, "raw", false)])
-        .args(["-drive", &drive(seat.media, "raw", true)])
-        .args(["-drive", &drive(seat.seed, "raw", true)])
-        .args(["-netdev", &network])
-        .args(["-device", "virtio-net-pci,netdev=net0"])
-        .args(["-display", "none", "-no-reboot"])
-        .arg("-serial")
-        .arg(format!("file:{}", seat.serial.display()))
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("QEMU seat")
-}
-
-fn drive(path: &Path, format: &str, readonly: bool) -> String {
-    format!(
-        "if=virtio,format={format},file={},readonly={}",
-        path.display(),
-        if readonly { "on" } else { "off" }
-    )
-}
-
-fn flash(path: &Path, unit: u8, readonly: bool) -> String {
-    format!(
-        "if=pflash,format=raw,unit={unit},file={},readonly={}",
-        path.display(),
-        if readonly { "on" } else { "off" }
-    )
-}
-
-fn reap(child: &mut Child, serial: &Path) {
-    let start = Instant::now();
-    loop {
-        match child.try_wait().expect("QEMU status") {
-            Some(status) => {
-                assert!(
-                    status.success(),
-                    "QEMU failed: {}\n{}",
-                    status,
-                    fs::read_to_string(serial).unwrap_or_default()
-                );
-                return;
-            }
-            None if start.elapsed() < Duration::from_secs(600) => {
-                thread::sleep(Duration::from_millis(250));
-            }
-            None => {
-                child.kill().expect("kill expired QEMU seat");
-                child.wait().expect("reap expired QEMU seat");
-                panic!(
-                    "QEMU seat expired\n{}",
-                    fs::read_to_string(serial).unwrap_or_default()
-                );
-            }
-        }
-    }
-}
-
-fn clean(port: u16) {
-    let pattern = format!("/bin/nc -q 0 127.0.0.1 {port}");
-    for _ in 0..100 {
-        let output = Command::new("pgrep")
-            .args(["-f", &pattern])
-            .output()
-            .expect("bridge inspection");
-        if !output.status.success() {
-            return;
-        }
-        thread::sleep(Duration::from_millis(10));
-    }
-    panic!("VM bridge remained for port {port}");
 }
 
 fn read(image: &Path, path: &str) -> Vec<u8> {

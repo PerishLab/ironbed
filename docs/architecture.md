@@ -90,6 +90,14 @@ private disk, and attempt-local root and firmware state into those paths.
 Neither the attempt nor the runner learns the provider's host paths or block
 device layout.
 
+A private block device remains consumer-owned state even when its seat is
+lost. Provider cleanup may close QEMU and its forwarding helpers, but it does
+not make an unclean filesystem safe for provider-side interpretation. A new
+seat first mounts the device and lets the consumer platform replay its journal;
+only after that seat shuts down cleanly may the rehearsal inspect the retained
+bytes from outside. This ordering keeps block lifecycle, filesystem recovery,
+and runner evidence as three distinct authorities.
+
 A root image digest is not the complete boot identity. The successful Linux
 case also required immutable firmware code and fresh per-seat firmware
 variables. Those remain provider materialization facts until another provider

@@ -235,20 +235,32 @@ attempt termination, and cleanup evidence distinct.
 
 ## Provider-loss rehearsal
 
-The mutation-bearing Docker case also kills the complete container after
-Hardrig has verified the seed and entered its mandatory next observation:
+The mutation-bearing case kills the complete provider seat after Hardrig has
+verified the seed and entered its mandatory next observation. Both the Docker
+and QEMU adapters exercise the same sequence:
 
 1. Ironbed emits started and output evidence, but no finished frame survives;
-2. Docker removes the named container and no seat remains to inspect;
-3. the private-state bind and verified seed survive container destruction;
-4. a fresh container and authorized `plan` attempt observe the seed as ready
-   and continue from the next action;
+2. the provider destroys the container or VM and verifies that its forwarding
+   helpers are gone;
+3. consumer-owned private state and the verified seed survive seat
+   destruction;
+4. a fresh seat and authorized `plan` attempt observe the seed as ready and
+   continue from the next action;
 5. the authored model remains byte-identical.
+
+The QEMU case gives each attempt a fresh root overlay and firmware variables
+while retaining the same private ext4 disk. Killing QEMU leaves that filesystem
+unclean, so the adapter does not use `debugfs` to interpret it immediately.
+The recovery guest mounts the disk and replays its journal first. Only after
+that guest shuts down cleanly does the adapter inspect the lost attempt's
+complete frames and prove that none is `finished`.
 
 This proves the division of responsibility rather than a wire shape. A live
 runner can report its direct-process and signal facts. After runner loss, only
 the provider adapter can attest seat destruction, and neither authority may
-claim rollback of private state or remote effects.
+claim rollback of private state or remote effects. The observed seed survived
+this exercised loss, but the rehearsal does not promise durability for
+arbitrary consumer writes that were never flushed.
 
 ## Pressure still needed
 
@@ -266,5 +278,7 @@ must determine:
   boundary;
 - which provider cleanup attestations are sufficient before a seat is reused,
   including helpers outside the guest process tree;
+- how private-storage durability is declared and tested without confusing
+  retained media with a guarantee for unflushed consumer writes;
 - whether Hardrig eventually emits a structured domain result or leaves that
   interpretation in its consumer adapter.
