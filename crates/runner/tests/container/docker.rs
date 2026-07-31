@@ -4,8 +4,6 @@ use std::io::Write;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
-use std::thread;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub(super) struct Docker {
     image: String,
@@ -242,34 +240,4 @@ pub(super) fn code(frames: &[Value]) -> Option<i64> {
     frames
         .last()
         .and_then(|frame| frame["process"]["code"].as_i64())
-}
-
-pub(super) fn name() -> String {
-    let nonce = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("clock")
-        .as_nanos();
-    format!("ironbed-loss-{}-{nonce}", std::process::id())
-}
-
-pub(super) fn remove(name: &str) {
-    let output = Command::new("docker")
-        .args(["kill", "--signal", "KILL", name])
-        .output()
-        .expect("kill container seat");
-    assert!(output.status.success(), "{output:?}");
-}
-
-pub(super) fn absent(name: &str) {
-    for _ in 0..100 {
-        let output = Command::new("docker")
-            .args(["container", "inspect", name])
-            .output()
-            .expect("inspect container seat");
-        if !output.status.success() {
-            return;
-        }
-        thread::sleep(Duration::from_millis(10));
-    }
-    panic!("container seat {name} was not removed");
 }

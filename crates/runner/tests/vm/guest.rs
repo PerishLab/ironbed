@@ -1,4 +1,6 @@
 use std::fs;
+use std::io::Write;
+use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::thread;
@@ -8,6 +10,8 @@ pub(super) struct Guest {
     child: Child,
     root: Option<tempfile::TempDir>,
     serial: std::path::PathBuf,
+    control: std::path::PathBuf,
+    channel: Option<UnixStream>,
     cube: u16,
     ssh: u16,
     done: bool,
@@ -27,11 +31,16 @@ pub(super) struct Spec<'a> {
 
 impl Guest {
     pub(super) fn new(name: &str, root: tempfile::TempDir, spec: Spec<'_>) -> Self {
+        let control = root.path().join("control.sock");
         let network = format!(
             "user,restrict=on,id=net0,guestfwd=tcp:10.0.2.100:{}-cmd:/bin/nc -q 0 127.0.0.1 {},guestfwd=tcp:10.0.2.100:{}-cmd:/bin/nc -q 0 127.0.0.1 {}",
             spec.cube, spec.cube, spec.ssh, spec.ssh
         );
-        let child = Command::new("qemu-system-x86_64")
+        let channel = format!(
+            "socket,id=control,path={},server=on,wait=off",
+            control.display()
+        );
+        let mut child = Command::new("qemu-system-x86_64")
             .args(["-name", &format!("ironbed-{name}")])
             .args(["-machine", "q35", "-accel", "tcg,thread=multi"])
             .args(["-cpu", "qemu64"])
@@ -44,6 +53,12 @@ impl Guest {
             .args(["-drive", &drive(spec.seed, "raw", true)])
             .args(["-netdev", &network])
             .args(["-device", "virtio-net-pci,netdev=net0"])
+            .args(["-chardev", &channel])
+            .args(["-device", "virtio-serial-pci"])
+            .args([
+                "-device",
+                "virtserialport,chardev=control,name=ironbed.cancel",
+            ])
             .args(["-display", "none", "-no-reboot"])
             .arg("-serial")
             .arg(format!("file:{}", spec.serial.display()))
@@ -51,10 +66,17 @@ impl Guest {
             .stderr(Stdio::null())
             .spawn()
             .expect("QEMU seat");
+        let channel = connect(&control).unwrap_or_else(|| {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("VM cancellation channel did not listen");
+        });
         Self {
             child,
             root: Some(root),
             serial: spec.serial.to_path_buf(),
+            control,
+            channel: Some(channel),
             cube: spec.cube,
             ssh: spec.ssh,
             done: false,
@@ -79,9 +101,30 @@ impl Guest {
         self.close();
     }
 
+    pub(super) fn cancel(mut self) {
+        self.channel
+            .as_mut()
+            .expect("VM cancellation channel")
+            .write_all(b"cancel\n")
+            .expect("cancel VM runner");
+        let status = wait(&mut self.child, &self.serial);
+        assert!(
+            status.success(),
+            "cancelled QEMU failed: {}\n{}",
+            status,
+            fs::read_to_string(&self.serial).unwrap_or_default()
+        );
+        self.close();
+    }
+
     fn close(&mut self) {
         assert!(clean(self.cube), "VM bridge remained for Cube");
         assert!(clean(self.ssh), "VM bridge remained for SSH");
+        self.channel.take();
+        assert!(
+            UnixStream::connect(&self.control).is_err(),
+            "VM cancellation channel remained"
+        );
         self.root.take();
         self.done = true;
     }
@@ -96,6 +139,7 @@ impl Drop for Guest {
         let _ = self.child.wait();
         let _ = clean(self.cube);
         let _ = clean(self.ssh);
+        self.channel.take();
         self.root.take();
     }
 }
@@ -149,4 +193,14 @@ fn clean(port: u16) -> bool {
         thread::sleep(Duration::from_millis(10));
     }
     false
+}
+
+fn connect(path: &Path) -> Option<UnixStream> {
+    for _ in 0..100 {
+        if let Ok(stream) = UnixStream::connect(path) {
+            return Some(stream);
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+    None
 }

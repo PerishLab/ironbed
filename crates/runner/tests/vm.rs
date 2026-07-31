@@ -172,3 +172,31 @@ fn loss() {
     assert!(!lab.rig.read("/secrets/roots/liberte.top.json").is_empty());
     lab.finish();
 }
+
+#[test]
+#[ignore = "requires QEMU, OVMF, cloud-localds, genisoimage, mkfs.ext4, debugfs, netcat, OpenSSL, socat, a verified Linux x86-64 cloud image, a source-bound Hardrig binary, sshd, and ssh-keygen"]
+fn cancels() {
+    let mut lab = Lab::new(Duration::from_secs(30));
+    let guest = lab.rig.spawn("cancelled", "apply");
+    lab.cube.wait(4, Duration::from_secs(600));
+    guest.cancel();
+
+    let cancelled = lab.rig.frames("cancelled");
+    let finished = cancelled.last().expect("finished frame");
+    assert_eq!(finished["process"]["termination"], "cancelled");
+    assert_eq!(finished["process"]["code"], Value::Null);
+    assert_eq!(
+        finished["cleanup"]["termination_signal"]["scope"],
+        "process_group"
+    );
+    let stdout = String::from_utf8(bytes(&cancelled, "stdout")).expect("Hardrig stdout");
+    assert!(stdout.contains("applied: root seed"), "{stdout}");
+
+    let recovered = lab.rig.run("after-cancel", "plan");
+    assert_eq!(code(&recovered), Some(0));
+    let stdout = String::from_utf8(bytes(&recovered, "stdout")).expect("Hardrig stdout");
+    assert!(stdout.contains("observed resource.seed: ready"), "{stdout}");
+    assert!(stdout.contains("observed session.ssh: change"), "{stdout}");
+    assert!(!lab.rig.read("/secrets/roots/liberte.top.json").is_empty());
+    lab.finish();
+}

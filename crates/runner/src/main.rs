@@ -20,12 +20,14 @@ enum Command {
     Run {
         #[arg(long)]
         seat: PathBuf,
+        #[arg(long)]
+        cancel: Option<PathBuf>,
     },
 }
 
 fn main() -> ExitCode {
     match Cli::parse().command {
-        Some(Command::Run { seat }) => run::start(&seat),
+        Some(Command::Run { seat, cancel }) => run::start(&seat, cancel.as_deref()),
         None => ExitCode::SUCCESS,
     }
 }

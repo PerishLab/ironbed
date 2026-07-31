@@ -233,6 +233,14 @@ deadline, signals the process group, returns within the bound, preserves the
 direct exit code, and reports `timeout`. This keeps direct-process result,
 attempt termination, and cleanup evidence distinct.
 
+## External-cancellation rehearsal
+
+Host signal, container signal, and QEMU virtio-stream cancellation now exercise
+the same live-runner semantics. Each produces a truthful `cancelled` terminal
+frame before provider cleanup, then a fresh seat recovers through retained
+private state. The complete transport and failure evidence is recorded in the
+[`cancellation scenario`](cancellation.md).
+
 ## Provider-loss rehearsal
 
 The mutation-bearing case kills the complete provider seat after Hardrig has
@@ -274,8 +282,8 @@ must determine:
 - how an external-effect boundary is represented without claiming rollback;
 - whether output exhaustion always terminates or may switch to a separately
   bounded artifact transfer without weakening evidence truth;
-- how external cancellation enters the same process-group and provider cleanup
-  boundary;
+- how cancellation authority, replay, and acknowledgement become
+  provider-neutral without conflating control transport and seat destruction;
 - which provider cleanup attestations are sufficient before a seat is reused,
   including helpers outside the guest process tree;
 - how private-storage durability is declared and tested without confusing
