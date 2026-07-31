@@ -1,7 +1,16 @@
 use serde_json::{Value, json};
 use std::fs;
 use std::io::Write;
+use std::path::Path;
 use std::process::{Command, Stdio};
+
+struct Trial<'a> {
+    required: &'a str,
+    provided: &'a str,
+    program: &'a Path,
+    args: &'a [&'a str],
+    timeout: u64,
+}
 
 fn system() -> String {
     format!(
@@ -14,7 +23,7 @@ fn system() -> String {
     )
 }
 
-fn offer(required: &str, provided: &str, args: &[&str]) -> (std::process::ExitStatus, Vec<Value>) {
+fn launch(trial: Trial<'_>) -> (std::process::ExitStatus, Vec<Value>) {
     let binary = env!("CARGO_BIN_EXE_ironbed");
     let cwd = tempfile::tempdir().expect("temporary cwd");
     let seat = cwd.path().join("seat.json");
@@ -23,7 +32,7 @@ fn offer(required: &str, provided: &str, args: &[&str]) -> (std::process::ExitSt
         serde_json::to_vec(&json!({
             "schema": "ironbed.seat/v0",
             "surface": {
-                "system": provided,
+                "system": trial.provided,
                 "substrate": "host",
                 "image": null
             }
@@ -35,14 +44,17 @@ fn offer(required: &str, provided: &str, args: &[&str]) -> (std::process::ExitSt
         "schema": "ironbed.rehearsal/v0",
         "id": "fixture",
         "surface": {
-            "system": required,
+            "system": trial.required,
             "substrate": "host"
         },
         "process": {
-            "program": binary,
-            "args": args,
+            "program": trial.program,
+            "args": trial.args,
             "cwd": cwd.path(),
             "env": {}
+        },
+        "limits": {
+            "timeout_ms": trial.timeout
         }
     });
     let mut child = Command::new(binary)
@@ -70,6 +82,16 @@ fn offer(required: &str, provided: &str, args: &[&str]) -> (std::process::ExitSt
     (output.status, frames)
 }
 
+fn offer(required: &str, provided: &str, args: &[&str]) -> (std::process::ExitStatus, Vec<Value>) {
+    launch(Trial {
+        required,
+        provided,
+        program: Path::new(env!("CARGO_BIN_EXE_ironbed")),
+        args,
+        timeout: 5_000,
+    })
+}
+
 fn submit(required: &str, args: &[&str]) -> (std::process::ExitStatus, Vec<Value>) {
     offer(required, &system(), args)
 }
@@ -95,6 +117,12 @@ fn reports() {
             .last()
             .and_then(|frame| frame["process"]["code"].as_i64()),
         Some(0)
+    );
+    assert_eq!(
+        frames
+            .last()
+            .and_then(|frame| frame["process"]["termination"].as_str()),
+        Some("process")
     );
     assert!(
         frames
@@ -133,4 +161,30 @@ fn detects() {
     let (status, frames) = offer("not-a-system", "not-a-system", &["--version"]);
     assert_eq!(status.code(), Some(2));
     assert!(frames.is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn expires() {
+    let current = system();
+    let (status, frames) = launch(Trial {
+        required: &current,
+        provided: &current,
+        program: Path::new("/bin/sleep"),
+        args: &["1"],
+        timeout: 10,
+    });
+    assert!(status.success());
+    assert_eq!(
+        frames
+            .last()
+            .and_then(|frame| frame["process"]["termination"].as_str()),
+        Some("timeout")
+    );
+    assert_eq!(
+        frames
+            .last()
+            .and_then(|frame| frame["process"]["code"].as_i64()),
+        None
+    );
 }
