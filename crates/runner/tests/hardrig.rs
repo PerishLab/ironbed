@@ -1,5 +1,7 @@
 #![cfg(unix)]
 
+#[path = "hardrig/model.rs"]
+mod model;
 #[path = "hardrig/server.rs"]
 mod server;
 
@@ -9,40 +11,6 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
-
-fn fixture(root: &Path, target: &str, port: u16, user: &str) {
-    let host = include_str!("fixture/hosts/example/one/host.toml")
-        .replace("http://127.0.0.1:9/", target)
-        .replace("user = \"root\"", &format!("user = \"{user}\""))
-        .replace("port = 22", &format!("port = {port}"));
-    let cluster = include_str!("fixture/clusters/liberte.top/cluster.toml");
-    fs::create_dir_all(root.join("hosts/example/one")).expect("host root");
-    fs::create_dir_all(root.join("clusters/liberte.top")).expect("cluster root");
-    fs::write(root.join("hosts/example/one/host.toml"), host).expect("host model");
-    fs::write(root.join("clusters/liberte.top/cluster.toml"), cluster).expect("cluster model");
-}
-
-fn state(root: &Path) {
-    fs::create_dir(root).expect("state root");
-    let cube = root.join("example.env");
-    fs::write(
-        &cube,
-        "EXAMPLE_ACCOUNT=\"fixture\"\nEXAMPLE_API_KEY=\"fixture-secret\"\n",
-    )
-    .expect("Cube credential");
-    mode(&cube);
-    let dns = root.join("dnspod.env");
-    fs::write(
-        &dns,
-        "TENCENT_SECRET_ID=\"fixture-id\"\nTENCENT_SECRET_KEY=\"fixture-key\"\n",
-    )
-    .expect("DNS credential");
-    mode(&dns);
-}
-
-fn mode(path: &Path) {
-    fs::set_permissions(path, fs::Permissions::from_mode(0o600)).expect("credential mode");
-}
 
 fn attempt(program: &Path, root: &Path, state: &Path, action: &str) -> (Output, Vec<Value>) {
     let binary = env!("CARGO_BIN_EXE_ironbed");
@@ -130,11 +98,11 @@ fn recovers() {
     let (_sshd, port, user) = sshd(service.path());
     let cube = Cube::start(port, &user);
     let model = tempfile::tempdir().expect("model root");
-    fixture(model.path(), &cube.target, port, &user);
+    model::fixture(model.path(), &cube.target, port, &user);
     let before = fs::read(model.path().join("hosts/example/one/host.toml")).expect("model");
     let private = tempfile::tempdir().expect("private parent");
     let local = private.path().join("state");
-    state(&local);
+    model::state(&local);
 
     let (apply, frames) = attempt(&binary, model.path(), &local, "apply");
     assert!(apply.status.success(), "{apply:?}");

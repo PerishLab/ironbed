@@ -52,6 +52,24 @@ Ironbed does not own:
 Transport retries may repeat observation or reporting. Ironbed must never
 silently repeat arbitrary execution after an indeterminate external effect.
 
+## Provider boundary
+
+A supplied execution seat is an enforced boundary, not just a machine handle.
+Its provider establishes and attests:
+
+- substrate, image, identity, and isolation facts;
+- read-only, writable, private, and temporary resource grants;
+- network reach and executable prerequisites;
+- lease fencing and cleanup after the runner itself is lost.
+
+Ironbed compares independently observable facts such as OS and architecture
+with that declaration, runs inside the granted boundary, and reports only the
+cleanup it can prove. While alive it owns child-process recovery; after runner
+loss, the provider-owned container, VM, cgroup, or equivalent closes the seat.
+
+Destroying a seat does not roll back consumer-owned private state or an
+indeterminate remote effect.
+
 ## Day 0 topology
 
 Two physical repositories carry three concepts:

@@ -120,12 +120,41 @@ failure but does not yet know the private-state boundary, so the verification
 remains in the Hardrig scenario adapter. Ironbed must earn any stronger claim
 from an explicit resource grant rather than from stdout interpretation.
 
+## Container seat rehearsal
+
+The mutation-bearing case also runs across two fresh Docker containers while
+the provider keeps the same private-state bind:
+
+- the Ironbed and Hardrig binaries, authored model, and CA bundle are mounted
+  read-only;
+- private state is the only writable bind;
+- host networking is an explicit rehearsal grant;
+- the container user matches the owner of private state;
+- each container is removed after its attempt.
+
+The first candidate image was Debian 12. It truthfully refused the host-built
+binary because its glibc was older than the binary requirement. Ubuntu 24.04
+matched the ABI but still needed an explicit CA bundle before Hardrig could
+construct its HTTP client. These are image and executable-prerequisite facts,
+not refinements of `linux-x86_64`.
+
+With those grants in place, the first container creates the seed and exits
+after the observation fence. A second container observes that same seed as
+ready and continues from the next Hardrig action. This proves that a seat is
+not private state and that destroying a container is not rollback.
+
+Ironbed independently observes only `linux-x86_64`. The Docker scenario adapter
+attests `container`, the image, mounts, network mode, and user. The current
+runner echoes `container` as provider-declared evidence and does not claim it
+detected its own substrate.
+
 ## Pressure still needed
 
 This scenario does not yet earn a stable wire shape. Further Linux pressure
 must determine:
 
-- how a provider attests host versus container versus VM;
+- the smallest transport-neutral shape for provider-attested substrate, image,
+  identity, network, and resource grants;
 - how read-only model input and private persistent state become explicit
   provider grants without becoming Ironbed artifacts;
 - how an external-effect boundary is represented without claiming rollback;
