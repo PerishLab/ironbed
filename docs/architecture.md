@@ -67,6 +67,12 @@ with that declaration, runs inside the granted boundary, and reports only the
 cleanup it can prove. While alive it owns child-process recovery; after runner
 loss, the provider-owned container, VM, cgroup, or equivalent closes the seat.
 
+The runner-private rehearsal keeps the two authorities separate even before a
+transport is chosen: the attempt arrives on standard input, while the launching
+provider supplies an absolute `ironbed.seat/v0` descriptor through `--seat`.
+The started evidence retains required, provided, and independently observed
+surface facts without presenting all three as runner observations.
+
 Destroying a seat does not roll back consumer-owned private state or an
 indeterminate remote effect.
 

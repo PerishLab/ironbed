@@ -8,20 +8,23 @@ mod server;
 use serde_json::{Value, json};
 use server::{Cube, sshd};
 use std::fs;
+use std::io::Write;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
-struct Seat {
+struct Docker {
     image: String,
+    digest: String,
     ironbed: PathBuf,
     hardrig: PathBuf,
     user: String,
 }
 
-impl Seat {
+impl Docker {
     fn new(state: &Path) -> Self {
         let image = std::env::var("IRONBED_CONTAINER_IMAGE").expect("container image");
+        let digest = digest(&image);
         let ironbed = PathBuf::from(env!("CARGO_BIN_EXE_ironbed"))
             .canonicalize()
             .expect("Ironbed binary");
@@ -32,6 +35,7 @@ impl Seat {
         let owner = fs::metadata(state).expect("state metadata");
         Self {
             image,
+            digest,
             ironbed,
             hardrig,
             user: format!("{}:{}", owner.uid(), owner.gid()),
@@ -39,6 +43,20 @@ impl Seat {
     }
 
     fn run(&self, model: &Path, state: &Path, action: &str) -> (Output, Vec<Value>) {
+        let mut descriptor = tempfile::NamedTempFile::new().expect("seat");
+        serde_json::to_writer(
+            &mut descriptor,
+            &json!({
+                "schema": "ironbed.seat/v0",
+                "surface": {
+                    "system": system(),
+                    "substrate": "container",
+                    "image": &self.digest
+                }
+            }),
+        )
+        .expect("seat");
+        descriptor.flush().expect("seat");
         let ironbed = mount(&self.ironbed, "/dut/ironbed", true);
         let hardrig = mount(&self.hardrig, "/dut/hardrig", true);
         let ca = mount(
@@ -48,6 +66,7 @@ impl Seat {
         );
         let model = mount(model, "/model", true);
         let state = mount(state, "/state", false);
+        let seat = mount(descriptor.path(), "/dut/seat.json", true);
         let input = attempt(action);
         let mut child = Command::new("docker")
             .args([
@@ -60,10 +79,10 @@ impl Seat {
                 &self.user,
             ])
             .args(["--mount", &ironbed, "--mount", &hardrig, "--mount", &ca])
-            .args(["--mount", &model, "--mount", &state])
+            .args(["--mount", &model, "--mount", &state, "--mount", &seat])
             .args(["--workdir", "/model", "--entrypoint", "/dut/ironbed"])
             .arg(&self.image)
-            .arg("run")
+            .args(["run", "--seat", "/dut/seat.json"])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -81,6 +100,18 @@ impl Seat {
             .collect();
         (output, frames)
     }
+}
+
+fn digest(image: &str) -> String {
+    let output = Command::new("docker")
+        .args(["image", "inspect", "--format", "{{.Id}}", image])
+        .output()
+        .expect("container image");
+    assert!(output.status.success(), "{output:?}");
+    String::from_utf8(output.stdout)
+        .expect("image digest")
+        .trim()
+        .to_string()
 }
 
 fn mount(source: &Path, target: &str, read: bool) -> String {
@@ -157,15 +188,13 @@ fn recovers() {
     let private = tempfile::tempdir().expect("private parent");
     let state = private.path().join("state");
     model::state(&state);
-    let seat = Seat::new(&state);
+    let seat = Docker::new(&state);
 
     let (apply, frames) = seat.run(desired.path(), &state, "apply");
     assert!(apply.status.success(), "{apply:?}");
-    assert_eq!(frames[0]["surface"]["declared"]["substrate"], "container");
-    assert_eq!(
-        frames[0]["surface"]["substrate_evidence"],
-        "provider_declared"
-    );
+    assert_eq!(frames[0]["surface"]["required"]["substrate"], "container");
+    assert_eq!(frames[0]["surface"]["provided"]["substrate"], "container");
+    assert_eq!(frames[0]["surface"]["authority"]["substrate"], "provider");
     assert_eq!(code(&frames), Some(2));
     let stdout = String::from_utf8(bytes(&frames, "stdout")).expect("Hardrig stdout");
     let stderr = String::from_utf8(bytes(&frames, "stderr")).expect("Hardrig stderr");

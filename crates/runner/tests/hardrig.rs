@@ -8,12 +8,27 @@ mod server;
 use serde_json::{Value, json};
 use server::{Cube, sshd};
 use std::fs;
+use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
 fn attempt(program: &Path, root: &Path, state: &Path, action: &str) -> (Output, Vec<Value>) {
     let binary = env!("CARGO_BIN_EXE_ironbed");
+    let mut seat = tempfile::NamedTempFile::new().expect("seat");
+    serde_json::to_writer(
+        &mut seat,
+        &json!({
+            "schema": "ironbed.seat/v0",
+            "surface": {
+                "system": system(),
+                "substrate": "host",
+                "image": null
+            }
+        }),
+    )
+    .expect("seat");
+    seat.flush().expect("seat");
     let mut args = vec![
         "--root".to_string(),
         root.display().to_string(),
@@ -40,7 +55,8 @@ fn attempt(program: &Path, root: &Path, state: &Path, action: &str) -> (Output, 
         }
     });
     let mut child = Command::new(binary)
-        .arg("run")
+        .args(["run", "--seat"])
+        .arg(seat.path())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

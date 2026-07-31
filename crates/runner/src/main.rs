@@ -1,6 +1,7 @@
 mod run;
 
 use clap::{Parser, Subcommand};
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 #[derive(Parser)]
@@ -16,12 +17,15 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    Run,
+    Run {
+        #[arg(long)]
+        seat: PathBuf,
+    },
 }
 
 fn main() -> ExitCode {
     match Cli::parse().command {
-        Some(Command::Run) => run::start(),
+        Some(Command::Run { seat }) => run::start(&seat),
         None => ExitCode::SUCCESS,
     }
 }

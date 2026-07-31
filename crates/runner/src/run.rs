@@ -1,6 +1,8 @@
 mod pipe;
+mod seat;
 
 use pipe::{Chunk, Stream};
+use seat::{Seat, Substrate};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
@@ -28,23 +30,15 @@ const ARCH: &str = "x86_64";
 struct Attempt {
     schema: String,
     id: String,
-    surface: Surface,
+    surface: Requirement,
     process: Process,
 }
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct Surface {
+struct Requirement {
     system: String,
     substrate: Substrate,
-}
-
-#[derive(Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-enum Substrate {
-    Host,
-    Container,
-    Vm,
 }
 
 #[derive(Deserialize)]
@@ -84,8 +78,8 @@ impl Offset {
     }
 }
 
-pub fn start() -> ExitCode {
-    match execute() {
+pub fn start(seat: &Path) -> ExitCode {
+    match execute(seat) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("ironbed: {error}");
@@ -94,14 +88,15 @@ pub fn start() -> ExitCode {
     }
 }
 
-fn execute() -> Result<(), String> {
+fn execute(path: &Path) -> Result<(), String> {
     let attempt = read()?;
-    validate(&attempt)?;
+    let seat = seat::read(path)?;
+    validate(&attempt, &seat)?;
     let observed = system();
-    if attempt.surface.system != observed {
+    if seat.surface.system != observed {
         return Err(format!(
-            "declared system {} does not match observed {observed}",
-            attempt.surface.system
+            "provided system {} does not match observed {observed}",
+            seat.surface.system
         ));
     }
     let mut child = command(&attempt)
@@ -119,7 +114,7 @@ fn execute() -> Result<(), String> {
     pipe::spawn(out, Stream::Out, send.clone());
     pipe::spawn(err, Stream::Err, send);
     let mut writer = io::stdout().lock();
-    if let Err(error) = emit(&mut writer, &started(&attempt, &observed)) {
+    if let Err(error) = emit(&mut writer, &started(&attempt, &seat, &observed)) {
         return abort(&mut child, error);
     }
     let (sequence, offset, failed) = match drain(&mut writer, &attempt.id, receive) {
@@ -184,7 +179,7 @@ fn read() -> Result<Attempt, String> {
     serde_json::from_slice(&bytes).map_err(|error| format!("invalid attempt: {error}"))
 }
 
-fn validate(attempt: &Attempt) -> Result<(), String> {
+fn validate(attempt: &Attempt, seat: &Seat) -> Result<(), String> {
     if attempt.schema != ATTEMPT {
         return Err(format!("attempt schema must be {ATTEMPT}"));
     }
@@ -201,6 +196,15 @@ fn validate(attempt: &Attempt) -> Result<(), String> {
     }
     if attempt.process.env.keys().any(|key| key.is_empty()) {
         return Err("environment keys cannot be empty".to_string());
+    }
+    if attempt.surface.system != seat.surface.system {
+        return Err(format!(
+            "required system {} does not match provided {}",
+            attempt.surface.system, seat.surface.system
+        ));
+    }
+    if attempt.surface.substrate != seat.surface.substrate {
+        return Err("required substrate does not match provided substrate".to_string());
     }
     Ok(())
 }
@@ -224,16 +228,21 @@ fn emit(writer: &mut impl Write, value: &Value) -> Result<(), String> {
     writer.flush().map_err(|error| error.to_string())
 }
 
-fn started(attempt: &Attempt, observed: &str) -> Value {
+fn started(attempt: &Attempt, seat: &Seat, observed: &str) -> Value {
     json!({
         "schema": FRAME,
         "attempt": attempt.id,
         "sequence": 0,
         "kind": "started",
         "surface": {
-            "declared": attempt.surface,
+            "required": attempt.surface,
+            "provided": seat.surface,
             "observed_system": observed,
-            "substrate_evidence": "provider_declared"
+            "authority": {
+                "system": "provider_and_runner",
+                "substrate": "provider",
+                "image": "provider"
+            }
         }
     })
 }
