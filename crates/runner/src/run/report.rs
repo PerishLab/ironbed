@@ -1,4 +1,7 @@
-use super::pipe::{Chunk, Stream};
+use super::{
+    child,
+    pipe::{Chunk, Stream},
+};
 use serde_json::{Value, json};
 use std::io::Write;
 use std::process::Child;
@@ -7,18 +10,75 @@ use std::time::{Duration, Instant};
 
 pub(super) struct Drain {
     pub(super) sequence: u64,
+    pub(super) kept: Count,
+    pub(super) lost: Count,
+    pub(super) limit: u64,
+    pub(super) failed: Option<String>,
+    pub(super) termination: Termination,
+    pub(super) signalled: bool,
+}
+
+pub(super) enum Termination {
+    Process,
+    Timeout,
+    Limit,
+}
+
+impl Termination {
+    pub(super) fn name(&self) -> &'static str {
+        match self {
+            Self::Process => "process",
+            Self::Timeout => "timeout",
+            Self::Limit => "output_limit",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+pub(super) struct Count {
     pub(super) out: u64,
     pub(super) err: u64,
-    pub(super) failed: Option<String>,
-    pub(super) expired: bool,
+}
+
+struct State {
+    deadline: Option<Instant>,
+    termination: Termination,
+    signalled: bool,
+}
+
+impl State {
+    fn new(timeout: Duration) -> Self {
+        Self {
+            deadline: Some(Instant::now() + timeout),
+            termination: Termination::Process,
+            signalled: false,
+        }
+    }
+
+    fn expire(&mut self, child: &mut Child) -> Result<(), String> {
+        self.signalled = child::stop(child)?;
+        self.termination = Termination::Timeout;
+        self.deadline = None;
+        Ok(())
+    }
+
+    fn limit(&mut self, child: &mut Child, crossed: bool) -> Result<(), String> {
+        if crossed && matches!(self.termination, Termination::Process) {
+            self.signalled = child::stop(child)?;
+            self.termination = Termination::Limit;
+            self.deadline = None;
+        }
+        Ok(())
+    }
 }
 
 pub(super) struct Reporter<'a, W> {
     writer: &'a mut W,
     attempt: &'a str,
     sequence: u64,
-    out: u64,
-    err: u64,
+    kept: Count,
+    lost: Count,
+    limit: u64,
 }
 
 impl<'a, W: Write> Reporter<'a, W> {
@@ -27,8 +87,9 @@ impl<'a, W: Write> Reporter<'a, W> {
             writer,
             attempt,
             sequence: 1,
-            out: 0,
-            err: 0,
+            kept: Count::default(),
+            lost: Count::default(),
+            limit: 0,
         }
     }
 
@@ -45,19 +106,22 @@ impl<'a, W: Write> Reporter<'a, W> {
         receive: Receiver<Chunk>,
         child: &mut Child,
         timeout: Duration,
+        limit: u64,
     ) -> Result<Drain, String> {
-        let mut deadline = Some(Instant::now() + timeout);
-        let mut expired = false;
+        self.limit = limit;
+        let mut state = State::new(timeout);
         let mut done = 0_u8;
         let mut failed = None;
         while done < 2 {
-            let Some(chunk) = next(&receive, deadline)? else {
-                expired = expire(child)?;
-                deadline = None;
+            let Some(chunk) = next(&receive, state.deadline)? else {
+                state.expire(child)?;
                 continue;
             };
             match chunk {
-                Chunk::Data(stream, data) => self.output(stream, data)?,
+                Chunk::Data(stream, data) => {
+                    let crossed = self.output(stream, data)?;
+                    state.limit(child, crossed)?;
+                }
                 Chunk::Done => done += 1,
                 Chunk::Failed(stream, error) => {
                     failed = Some(format!("cannot read {}: {error}", stream.name()));
@@ -67,17 +131,32 @@ impl<'a, W: Write> Reporter<'a, W> {
         }
         Ok(Drain {
             sequence: self.sequence,
-            out: self.out,
-            err: self.err,
+            kept: self.kept,
+            lost: self.lost,
+            limit,
             failed,
-            expired,
+            termination: state.termination,
+            signalled: state.signalled,
         })
     }
 
-    fn output(&mut self, stream: Stream, bytes: Vec<u8>) -> Result<(), String> {
+    fn output(&mut self, stream: Stream, mut bytes: Vec<u8>) -> Result<bool, String> {
+        let retained = self.kept.out + self.kept.err;
+        let remaining = self.limit.saturating_sub(retained);
+        let discarded = bytes.len().saturating_sub(remaining as usize);
+        if discarded > 0 {
+            bytes.truncate(remaining as usize);
+            match stream {
+                Stream::Out => self.lost.out += discarded as u64,
+                Stream::Err => self.lost.err += discarded as u64,
+            }
+        }
+        if bytes.is_empty() {
+            return Ok(discarded > 0);
+        }
         let offset = match stream {
-            Stream::Out => &mut self.out,
-            Stream::Err => &mut self.err,
+            Stream::Out => &mut self.kept.out,
+            Stream::Err => &mut self.kept.err,
         };
         let prior = *offset;
         *offset += bytes.len() as u64;
@@ -92,7 +171,7 @@ impl<'a, W: Write> Reporter<'a, W> {
         });
         self.emit(&frame)?;
         self.sequence += 1;
-        Ok(())
+        Ok(discarded > 0)
     }
 }
 
@@ -105,18 +184,5 @@ fn next(receive: &Receiver<Chunk>, deadline: Option<Instant>) -> Result<Option<C
         Ok(chunk) => Ok(Some(chunk)),
         Err(RecvTimeoutError::Timeout) => Ok(None),
         Err(RecvTimeoutError::Disconnected) => Err("output readers disconnected".to_string()),
-    }
-}
-
-fn expire(child: &mut Child) -> Result<bool, String> {
-    match child
-        .try_wait()
-        .map_err(|error| format!("cannot inspect child at timeout: {error}"))?
-    {
-        Some(_) => Ok(false),
-        None => child
-            .kill()
-            .map(|_| true)
-            .map_err(|error| format!("cannot terminate child at timeout: {error}")),
     }
 }

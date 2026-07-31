@@ -1,5 +1,5 @@
 use std::io::Read;
-use std::sync::mpsc;
+use std::sync::mpsc::SyncSender;
 use std::thread;
 
 pub(super) enum Chunk {
@@ -23,14 +23,14 @@ impl Stream {
     }
 }
 
-pub(super) fn spawn<R>(mut reader: R, stream: Stream, send: mpsc::Sender<Chunk>)
+pub(super) fn spawn<R>(mut reader: R, stream: Stream, send: SyncSender<Chunk>)
 where
     R: Read + Send + 'static,
 {
     thread::spawn(move || copy(&mut reader, stream, &send));
 }
 
-fn copy(reader: &mut impl Read, stream: Stream, send: &mpsc::Sender<Chunk>) {
+fn copy(reader: &mut impl Read, stream: Stream, send: &SyncSender<Chunk>) {
     let mut buffer = [0_u8; 8192];
     loop {
         match reader.read(&mut buffer) {
