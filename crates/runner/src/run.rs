@@ -1,4 +1,5 @@
 mod attempt;
+mod cancel;
 mod child;
 mod pipe;
 mod report;
@@ -27,8 +28,8 @@ const ARCH: &str = "aarch64";
 #[cfg(target_arch = "x86_64")]
 const ARCH: &str = "x86_64";
 
-pub fn start(seat: &Path) -> ExitCode {
-    match execute(seat) {
+pub fn start(seat: &Path, cancel: Option<&Path>) -> ExitCode {
+    match execute(seat, cancel) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("ironbed: {error}");
@@ -37,7 +38,7 @@ pub fn start(seat: &Path) -> ExitCode {
     }
 }
 
-fn execute(path: &Path) -> Result<(), String> {
+fn execute(path: &Path, control: Option<&Path>) -> Result<(), String> {
     let attempt = Attempt::read()?;
     let seat = seat::read(path)?;
     attempt.validate(&seat)?;
@@ -48,6 +49,7 @@ fn execute(path: &Path) -> Result<(), String> {
             seat.surface.system
         ));
     }
+    let cancel = cancel::Cancel::new(control)?;
     let mut child = child::command(&attempt)
         .spawn()
         .map_err(|error| format!("cannot start {}: {error}", attempt.process.program))?;
@@ -63,7 +65,7 @@ fn execute(path: &Path) -> Result<(), String> {
     pipe::spawn(out, pipe::Stream::Out, send.clone());
     pipe::spawn(err, pipe::Stream::Err, send);
     let mut writer = io::stdout().lock();
-    let mut reporter = report::Reporter::new(&mut writer, &attempt.id);
+    let mut reporter = report::Reporter::new(&mut writer, &attempt.id, cancel);
     if let Err(error) = reporter.emit(&started(&attempt, &seat, &observed)) {
         return child::abort(&mut child, error);
     }

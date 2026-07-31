@@ -119,6 +119,18 @@ and runner-side abort signal that group rather than only the direct child. The
 finished frame proves that the direct process was reaped and, when applicable,
 that a group signal was sent; it does not claim that a provider seat is clean.
 
+An external `SIGTERM` asks a live Unix runner to cancel. The runner remains
+alive, terminates the child process group, drains its pipes, reaps the direct
+process, and emits one finished frame with `cancelled` as the cause. The
+incoming cancellation request and the kill used to enforce it are distinct
+facts.
+
+The private runner also accepts an optional provider-supplied `--cancel` path.
+One byte on that pre-established stream enters the same cancellation state.
+The VM adapter maps a host QEMU socket to that guest-local path with
+virtio-serial. POSIX signal and byte stream are current launch transports, not
+attempt vocabulary or a settled control-plane protocol.
+
 If the runner itself is lost, no terminal runner frame exists. A provider may
 destroy the container, VM, cgroup, or lease boundary and separately attest that
 fact. A new authorized attempt must observe any retained private state or

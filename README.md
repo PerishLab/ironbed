@@ -9,4 +9,6 @@ The repository is at cold start. It contains the independent proto and runner
 anchors plus the laws that keep their boundary honest. Hardrig Linux delivery
 is the first real pressure scenario; it will decide the model through execution.
 
-See [`docs/architecture.md`](docs/architecture.md).
+See [`docs/architecture.md`](docs/architecture.md), the
+[`Hardrig Linux scenario`](docs/scenarios/hardrig.md), and the
+[`cancellation scenario`](docs/scenarios/cancellation.md).

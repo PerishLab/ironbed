@@ -150,7 +150,7 @@ impl Qemu {
 
 fn cloud(name: &str, action: &str) -> String {
     format!(
-        "#cloud-config\nbootcmd:\n  - [mkdir, -p, /state, /dut]\nruncmd:\n  - [mount, -L, IRONSTATE, /state]\n  - [mount, -o, ro, -L, IRONMEDIA, /dut]\n  - [sh, -c, '/dut/ironbed run --seat /dut/seat.json < /dut/{action}.json > /state/frames-{name}.ndjson 2> /state/stderr-{name}.log']\n  - [sync]\n  - [poweroff]\n"
+        "#cloud-config\nbootcmd:\n  - [mkdir, -p, /state, /dut]\nruncmd:\n  - [mount, -L, IRONSTATE, /state]\n  - [mount, -o, ro, -L, IRONMEDIA, /dut]\n  - [sh, -c, 'while [ ! -e /dev/virtio-ports/ironbed.cancel ]; do sleep 0.1; done; /dut/ironbed run --seat /dut/seat.json --cancel /dev/virtio-ports/ironbed.cancel < /dut/{action}.json > /state/frames-{name}.ndjson 2> /state/stderr-{name}.log']\n  - [sync]\n  - [poweroff]\n"
     )
 }
 

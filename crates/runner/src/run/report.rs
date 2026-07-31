@@ -1,4 +1,5 @@
 use super::{
+    cancel::Cancel,
     child,
     pipe::{Chunk, Stream},
 };
@@ -7,6 +8,8 @@ use std::io::Write;
 use std::process::Child;
 use std::sync::mpsc::{Receiver, RecvTimeoutError};
 use std::time::{Duration, Instant};
+
+const TICK: Duration = Duration::from_millis(20);
 
 pub(super) struct Drain {
     pub(super) sequence: u64,
@@ -18,10 +21,12 @@ pub(super) struct Drain {
     pub(super) signalled: bool,
 }
 
+#[derive(Clone, Copy)]
 pub(super) enum Termination {
     Process,
     Timeout,
     Limit,
+    Cancel,
 }
 
 impl Termination {
@@ -30,6 +35,7 @@ impl Termination {
             Self::Process => "process",
             Self::Timeout => "timeout",
             Self::Limit => "output_limit",
+            Self::Cancel => "cancelled",
         }
     }
 }
@@ -70,6 +76,13 @@ impl State {
         }
         Ok(())
     }
+
+    fn cancel(&mut self, child: &mut Child) -> Result<(), String> {
+        self.signalled = child::stop(child)?;
+        self.termination = Termination::Cancel;
+        self.deadline = None;
+        Ok(())
+    }
 }
 
 pub(super) struct Reporter<'a, W> {
@@ -79,10 +92,11 @@ pub(super) struct Reporter<'a, W> {
     kept: Count,
     lost: Count,
     limit: u64,
+    cancel: Cancel,
 }
 
 impl<'a, W: Write> Reporter<'a, W> {
-    pub(super) fn new(writer: &'a mut W, attempt: &'a str) -> Self {
+    pub(super) fn new(writer: &'a mut W, attempt: &'a str, cancel: Cancel) -> Self {
         Self {
             writer,
             attempt,
@@ -90,6 +104,7 @@ impl<'a, W: Write> Reporter<'a, W> {
             kept: Count::default(),
             lost: Count::default(),
             limit: 0,
+            cancel,
         }
     }
 
@@ -113,17 +128,16 @@ impl<'a, W: Write> Reporter<'a, W> {
         let mut done = 0_u8;
         let mut failed = None;
         while done < 2 {
-            let Some(chunk) = next(&receive, state.deadline)? else {
-                state.expire(child)?;
-                continue;
-            };
-            match chunk {
-                Chunk::Data(stream, data) => {
+            let cancel = matches!(state.termination, Termination::Process).then_some(&self.cancel);
+            match next(&receive, state.deadline, cancel)? {
+                Wake::Expire => state.expire(child)?,
+                Wake::Cancel => state.cancel(child)?,
+                Wake::Chunk(Chunk::Data(stream, data)) => {
                     let crossed = self.output(stream, data)?;
                     state.limit(child, crossed)?;
                 }
-                Chunk::Done => done += 1,
-                Chunk::Failed(stream, error) => {
+                Wake::Chunk(Chunk::Done) => done += 1,
+                Wake::Chunk(Chunk::Failed(stream, error)) => {
                     failed = Some(format!("cannot read {}: {error}", stream.name()));
                     done += 1;
                 }
@@ -175,14 +189,42 @@ impl<'a, W: Write> Reporter<'a, W> {
     }
 }
 
-fn next(receive: &Receiver<Chunk>, deadline: Option<Instant>) -> Result<Option<Chunk>, String> {
-    let Some(deadline) = deadline else {
-        return receive.recv().map(Some).map_err(|error| error.to_string());
-    };
-    let remaining = deadline.saturating_duration_since(Instant::now());
-    match receive.recv_timeout(remaining) {
-        Ok(chunk) => Ok(Some(chunk)),
-        Err(RecvTimeoutError::Timeout) => Ok(None),
-        Err(RecvTimeoutError::Disconnected) => Err("output readers disconnected".to_string()),
+enum Wake {
+    Chunk(Chunk),
+    Expire,
+    Cancel,
+}
+
+fn next(
+    receive: &Receiver<Chunk>,
+    deadline: Option<Instant>,
+    cancel: Option<&Cancel>,
+) -> Result<Wake, String> {
+    loop {
+        if cancel.is_some_and(Cancel::requested) {
+            return Ok(Wake::Cancel);
+        }
+        let wait = match (deadline, cancel) {
+            (None, None) => {
+                return receive
+                    .recv()
+                    .map(Wake::Chunk)
+                    .map_err(|error| error.to_string());
+            }
+            (None, Some(_)) => TICK,
+            (Some(deadline), _) => deadline.saturating_duration_since(Instant::now()).min(TICK),
+        };
+        match receive.recv_timeout(wait) {
+            Ok(chunk) => return Ok(Wake::Chunk(chunk)),
+            Err(RecvTimeoutError::Timeout)
+                if deadline.is_some_and(|value| Instant::now() >= value) =>
+            {
+                return Ok(Wake::Expire);
+            }
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => {
+                return Err("output readers disconnected".to_string());
+            }
+        }
     }
 }
