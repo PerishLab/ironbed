@@ -1,0 +1,21 @@
+schema = "hardrig.cluster/v1"
+id = "liberte.top"
+host = "example.one"
+
+[sealed]
+version = "1.0.0"
+client = "1.0.0"
+
+[postgres]
+image = "example/postgres:1"
+storage = "1Gi"
+
+[authentik]
+version = "1.0.0"
+host = "auth.liberte.top"
+
+[ingress]
+version = "v1.0.0"
+webhook = "1.0.0"
+email = "operator@example.com"
+domain = "liberte.top"
