@@ -12,6 +12,7 @@ pub(super) struct Cube {
     pub(super) target: String,
     requests: Receiver<String>,
     handle: JoinHandle<()>,
+    seen: Vec<String>,
 }
 
 pub(super) struct Sshd(Child);
@@ -39,12 +40,25 @@ impl Cube {
             target,
             requests,
             handle,
+            seen: Vec::new(),
         }
     }
 
-    pub(super) fn finish(self) -> Vec<String> {
+    #[allow(dead_code)]
+    pub(super) fn wait(&mut self, count: usize, timeout: Duration) {
+        while self.seen.len() < count {
+            self.seen.push(
+                self.requests
+                    .recv_timeout(timeout)
+                    .expect("Cube request before deadline"),
+            );
+        }
+    }
+
+    pub(super) fn finish(mut self) -> Vec<String> {
         self.handle.join().expect("Cube server");
-        self.requests.into_iter().collect()
+        self.seen.extend(self.requests);
+        self.seen
     }
 }
 

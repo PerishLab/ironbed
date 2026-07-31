@@ -73,8 +73,35 @@ provider supplies an absolute `ironbed.seat/v0` descriptor through `--seat`.
 The started evidence retains required, provided, and independently observed
 surface facts without presenting all three as runner observations.
 
+The same private descriptor now names only the provider grants exercised by the
+Hardrig scenario: read-only input, consumer-owned private state, and
+attempt-temporary paths. An attempt refers to those grants by ID. The provider
+also states the execution identity and network mode, and may bind an input to a
+content digest and source identity. Ironbed checks that its program and working
+directory are covered by required grants, but it does not claim to have proved
+the provider's mount, identity, network, or source assertions.
+
 Destroying a seat does not roll back consumer-owned private state or an
 indeterminate remote effect.
+
+## Live supervision boundary
+
+The runner uses a bounded channel between each operating-system pipe and the
+evidence writer. A per-attempt retained-byte limit covers stdout and stderr
+together. Crossing it terminates the private v0 attempt, preserves the retained
+per-stream offsets, and records separately the bytes already observed but
+discarded. It does not claim a total order between the two streams or account
+for bytes the terminated process never wrote.
+
+On Unix, each child starts in a fresh process group. Timeout, output exhaustion,
+and runner-side abort signal that group rather than only the direct child. The
+finished frame proves that the direct process was reaped and, when applicable,
+that a group signal was sent; it does not claim that a provider seat is clean.
+
+If the runner itself is lost, no terminal runner frame exists. A provider may
+destroy the container, VM, cgroup, or lease boundary and separately attest that
+fact. A new authorized attempt must observe any retained private state or
+indeterminate external effect before deciding what to do next.
 
 ## Day 0 topology
 

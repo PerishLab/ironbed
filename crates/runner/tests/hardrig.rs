@@ -33,6 +33,29 @@ fn submit(trial: Trial<'_>) -> (Output, Vec<Value>) {
                 "system": system(),
                 "substrate": "host",
                 "image": null
+            },
+            "provider": {
+                "identity": "current",
+                "network": "host",
+                "resources": [
+                    {
+                        "id": "hardrig",
+                        "path": trial.program,
+                        "class": "read_only",
+                        "digest": sha256(trial.program),
+                        "source": origin()
+                    },
+                    {
+                        "id": "model",
+                        "path": trial.root,
+                        "class": "read_only"
+                    },
+                    {
+                        "id": "private-state",
+                        "path": trial.state,
+                        "class": "private"
+                    }
+                ]
             }
         }),
     )
@@ -56,6 +79,7 @@ fn submit(trial: Trial<'_>) -> (Output, Vec<Value>) {
             "system": system(),
             "substrate": "host"
         },
+        "resources": ["hardrig", "model", "private-state"],
         "process": {
             "program": trial.program,
             "args": args,
@@ -63,7 +87,8 @@ fn submit(trial: Trial<'_>) -> (Output, Vec<Value>) {
             "env": {}
         },
         "limits": {
-            "timeout_ms": trial.timeout
+            "timeout_ms": trial.timeout,
+            "output_bytes": 1048576
         }
     });
     let mut child = Command::new(binary)
@@ -107,6 +132,26 @@ fn system() -> String {
     )
 }
 
+fn sha256(path: &Path) -> String {
+    let output = Command::new("sha256sum")
+        .arg(path)
+        .output()
+        .expect("sha256sum");
+    assert!(output.status.success(), "{output:?}");
+    format!(
+        "sha256:{}",
+        String::from_utf8(output.stdout)
+            .expect("sha256sum output")
+            .split_whitespace()
+            .next()
+            .expect("sha256 digest")
+    )
+}
+
+fn origin() -> String {
+    std::env::var("IRONBED_HARDRIG_SOURCE").expect("Hardrig source identity")
+}
+
 fn bytes(frames: &[Value], stream: &str) -> Vec<u8> {
     frames
         .iter()
@@ -134,7 +179,7 @@ fn termination(frames: &[Value]) -> Option<&str> {
 }
 
 #[test]
-#[ignore = "requires a real Hardrig binary, sshd, and ssh-keygen"]
+#[ignore = "requires a source-bound real Hardrig binary, sha256sum, sshd, and ssh-keygen"]
 fn recovers() {
     let binary = PathBuf::from(std::env::var_os("IRONBED_HARDRIG_BIN").expect("Hardrig binary"));
     let binary = binary.canonicalize().expect("absolute Hardrig binary");
@@ -186,7 +231,7 @@ fn recovers() {
 }
 
 #[test]
-#[ignore = "requires a real Hardrig binary, sshd, and ssh-keygen"]
+#[ignore = "requires a source-bound real Hardrig binary, sha256sum, sshd, and ssh-keygen"]
 fn expires() {
     let binary = PathBuf::from(std::env::var_os("IRONBED_HARDRIG_BIN").expect("Hardrig binary"));
     let binary = binary.canonicalize().expect("absolute Hardrig binary");
