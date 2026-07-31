@@ -1,4 +1,5 @@
 use serde_json::{Value, json};
+use std::fs;
 use std::io::Write;
 use std::process::{Command, Stdio};
 
@@ -13,14 +14,28 @@ fn system() -> String {
     )
 }
 
-fn submit(system: &str, args: &[&str]) -> (std::process::ExitStatus, Vec<Value>) {
+fn offer(required: &str, provided: &str, args: &[&str]) -> (std::process::ExitStatus, Vec<Value>) {
     let binary = env!("CARGO_BIN_EXE_ironbed");
     let cwd = tempfile::tempdir().expect("temporary cwd");
+    let seat = cwd.path().join("seat.json");
+    fs::write(
+        &seat,
+        serde_json::to_vec(&json!({
+            "schema": "ironbed.seat/v0",
+            "surface": {
+                "system": provided,
+                "substrate": "host",
+                "image": null
+            }
+        }))
+        .expect("seat"),
+    )
+    .expect("seat");
     let input = json!({
         "schema": "ironbed.rehearsal/v0",
         "id": "fixture",
         "surface": {
-            "system": system,
+            "system": required,
             "substrate": "host"
         },
         "process": {
@@ -31,7 +46,8 @@ fn submit(system: &str, args: &[&str]) -> (std::process::ExitStatus, Vec<Value>)
         }
     });
     let mut child = Command::new(binary)
-        .arg("run")
+        .args(["run", "--seat"])
+        .arg(seat)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
@@ -52,6 +68,10 @@ fn submit(system: &str, args: &[&str]) -> (std::process::ExitStatus, Vec<Value>)
         .map(|line| serde_json::from_slice(line).expect("frame should be JSON"))
         .collect();
     (output.status, frames)
+}
+
+fn submit(required: &str, args: &[&str]) -> (std::process::ExitStatus, Vec<Value>) {
+    offer(required, &system(), args)
 }
 
 fn execute(args: &[&str]) -> (std::process::ExitStatus, Vec<Value>) {
@@ -104,6 +124,13 @@ fn preserves() {
 #[test]
 fn refuses() {
     let (status, frames) = submit("not-a-system", &["--version"]);
+    assert_eq!(status.code(), Some(2));
+    assert!(frames.is_empty());
+}
+
+#[test]
+fn detects() {
+    let (status, frames) = offer("not-a-system", "not-a-system", &["--version"]);
     assert_eq!(status.code(), Some(2));
     assert!(frames.is_empty());
 }

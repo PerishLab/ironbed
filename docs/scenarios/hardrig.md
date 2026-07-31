@@ -89,11 +89,11 @@ The fixture remained byte-identical and the private state root remained empty.
 Destructive `rebuild` stays outside the rehearsal. No provider, host, cluster,
 DNS, data, or credential mutation belongs here.
 
-The runner currently carries the private `ironbed.rehearsal/v0` and
-`ironbed.frame/v0` shapes needed to execute this pressure. They are not an
-`ironbed-proto` contract. In particular, raw byte arrays, provider-declared
-substrate evidence, and the absence of cancellation are visible pressure
-rather than settled answers.
+The runner currently carries the private `ironbed.rehearsal/v0`,
+`ironbed.seat/v0`, and `ironbed.frame/v0` shapes needed to execute this
+pressure. They are not an `ironbed-proto` contract. In particular, raw byte
+arrays, provider-supplied surface facts, and the absence of cancellation are
+visible pressure rather than settled answers.
 
 ## Mutation-bearing rehearsal
 
@@ -144,9 +144,10 @@ ready and continues from the next Hardrig action. This proves that a seat is
 not private state and that destroying a container is not rollback.
 
 Ironbed independently observes only `linux-x86_64`. The Docker scenario adapter
-attests `container`, the image, mounts, network mode, and user. The current
-runner echoes `container` as provider-declared evidence and does not claim it
-detected its own substrate.
+attests `container`, the exact image identity, mounts, network mode, and user.
+It supplies surface facts through a read-only seat descriptor, separately from
+the attempt on standard input. The runner compares required, provided, and
+observed facts and does not claim it detected its own substrate.
 
 ## Pressure still needed
 
