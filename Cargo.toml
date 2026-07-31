@@ -1,0 +1,13 @@
+[workspace]
+resolver = "3"
+members = ["crates/proto", "crates/runner"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://git.perish.top/PerishLab/ironbed"
+
+[workspace.dependencies]
+clap = { version = "4", features = ["derive"] }
+plumb = { version = "0", registry = "perish" }
