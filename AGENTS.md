@@ -34,7 +34,9 @@ capacity, or rotation.
   scheduler, executor, or Codehull model.
 - `crates/runner` — the executable testbed.
 - `docs` — product vocabulary, laws, scenarios, and verification.
-- `.runseal` / `.forgejo` — thin Plumb-shaped local and remote operation.
+- `runseal.toml` / `.runseal/resources` — env-only repository-local profile
+  material.
+- `.forgejo` — canonical guard and release lanes.
 
 Day 0 keeps proto and runner in one repository and release train. A separate
 proto repository is earned only by independent compatibility, consumer, or
@@ -43,8 +45,13 @@ amendment pressure.
 ## Operating
 
 - Never commit directly on `main`.
-- Work on a task branch and land through `runseal :land`.
-- Run `runseal :guard` before landing.
+- Work on a task branch and land through the managed task substrate.
+- Before landing, run `plumb doctor .`, `cargo fmt --all --check`,
+  `cargo clippy --locked --workspace --all-targets -- -D warnings`,
+  `cargo check --locked --workspace --all-targets --release`,
+  `cargo test --locked --workspace`, and `ectropy .`.
+- Use `runseal profile` to validate the repository profile and
+  `runseal : <command> [args...]` only when a command needs its environment.
 - Product vocabulary and laws stay here; repository mechanism remains Plumb's
   right to amend.
 - Do not deploy, publish, create credentials, or mutate a live runner fleet
