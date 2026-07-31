@@ -95,14 +95,40 @@ The runner currently carries the private `ironbed.rehearsal/v0` and
 substrate evidence, and the absence of cancellation are visible pressure
 rather than settled answers.
 
+## Mutation-bearing rehearsal
+
+The next joint rehearsal uses a local Cube double and a temporary SSH daemon.
+It gives the real Hardrig binary enough truthful observations to select its
+first action while keeping every target disposable:
+
+1. `apply --yes` creates and verifies the root seed in consumer-owned private
+   state;
+2. the Cube double fences the mandatory observation immediately after that
+   action;
+3. Hardrig exits two while Ironbed still completes the execution transport;
+4. the seed exists with mode `0600`, and the authored model remains unchanged;
+5. a new `plan` attempt observes the seed as ready and exposes the next action
+   without replaying the first attempt.
+
+The test is opt-in because it consumes a separately built Hardrig binary plus
+local `sshd` and `ssh-keygen`. It performs no live provider mutation and retains
+no generated secret after its temporary private-state root is removed.
+
+This establishes a real asymmetry: a failed process can have a verified
+consumer effect. The current runner receipt truthfully retains the process
+failure but does not yet know the private-state boundary, so the verification
+remains in the Hardrig scenario adapter. Ironbed must earn any stronger claim
+from an explicit resource grant rather than from stdout interpretation.
+
 ## Pressure still needed
 
-This scenario does not yet earn a stable wire shape. The next pressure is one
-disposable Linux target on which Hardrig performs and verifies a reversible
-mutation. That run must determine:
+This scenario does not yet earn a stable wire shape. Further Linux pressure
+must determine:
 
 - how a provider attests host versus container versus VM;
-- how private persistent state differs from an Ironbed artifact;
+- how read-only model input and private persistent state become explicit
+  provider grants without becoming Ironbed artifacts;
 - how an external-effect boundary is represented without claiming rollback;
-- how a new attempt resumes by observation after indeterminate termination;
+- how cancellation and output limits preserve the same observation-first
+  recovery rule;
 - which cleanup facts are meaningful for a reused execution surface.
