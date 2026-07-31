@@ -70,11 +70,17 @@ ownership real.
 Every model element must close an enumerable scenario. A useful word is not yet
 a resource, and a possible field is not yet state.
 
-The first scenario discussion will pressure:
+Hardrig Linux estate delivery is the first real device under test. Its working
+scenario lives in [`scenarios/hardrig.md`](scenarios/hardrig.md).
+The scenario distinguishes the execution surface, the consumer-owned delivery
+target, and any artifact target before assigning fields to any of them.
 
-- attempt, lease, seat, and capability;
+Current pressure includes:
+
+- system, substrate, surface, image, reuse, and tenancy;
+- attempt, lease, seat, capability, and external effect;
 - plan, step, source, and workspace;
 - evidence, log, artifact, outcome, and receipt;
 - cancellation, expiry, loss, refusal, cleanup, and retry.
 
-Until then the crates remain anchors rather than a speculative framework.
+The crates remain anchors until executable consumer pressure earns a shape.

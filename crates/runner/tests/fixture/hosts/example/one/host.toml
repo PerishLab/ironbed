@@ -1,0 +1,25 @@
+schema = "hardrig.host/v1"
+id = "example.one"
+
+[cube]
+target = "http://127.0.0.1:9/"
+credential = "example"
+host = 42
+
+[ssh]
+alias = "one.example"
+user = "root"
+port = 22
+identity = "ssh/keys/example.one"
+
+[storage]
+device = "/dev/vdb1"
+path = "/mnt/k3s"
+filesystem = "ext4"
+options = ["defaults"]
+
+[k3s]
+version = "v1.0.0+k3s1"
+checksum = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+storage = "/mnt/k3s/local-path"
+mode = "0600"
