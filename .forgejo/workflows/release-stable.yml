@@ -28,6 +28,7 @@ jobs:
       version: ${{ inputs.version }}
       promotion_channel: ${{ inputs.promotion_channel }}
       promotion_version: ${{ inputs.promotion_version }}
+      guard_contexts: '["guard / guard (push)","guard / guard-macos (push)","guard / guard-windows (push)"]'
     secrets:
       publish_access: ${{ secrets.RELEASE_PUBLISH_S3_ACCESS_KEY }}
       publish_secret: ${{ secrets.RELEASE_PUBLISH_S3_SECRET_KEY }}
