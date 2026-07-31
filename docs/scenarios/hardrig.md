@@ -92,7 +92,7 @@ DNS, data, or credential mutation belongs here.
 The runner currently carries the private `ironbed.rehearsal/v0`,
 `ironbed.seat/v0`, and `ironbed.frame/v0` shapes needed to execute this
 pressure. They are not an `ironbed-proto` contract. In particular, raw byte
-arrays, provider-supplied surface facts, and the absence of cancellation are
+arrays, provider-supplied surface facts, and direct-child timeout handling are
 visible pressure rather than settled answers.
 
 ## Mutation-bearing rehearsal
@@ -119,6 +119,16 @@ consumer effect. The current runner receipt truthfully retains the process
 failure but does not yet know the private-state boundary, so the verification
 remains in the Hardrig scenario adapter. Ironbed must earn any stronger claim
 from an explicit resource grant rather than from stdout interpretation.
+
+The same case is also fenced by time instead of a Cube refusal. Hardrig creates
+and verifies the seed, then blocks in the mandatory next observation. The
+attempt deadline terminates and reaps Hardrig, and the finished frame records
+`timeout` rather than inventing an exit code. A separately authorized attempt
+then observes the seed as ready and continues from the next action.
+
+This earns a required bounded-execution input and a timeout terminal fact. It
+does not yet prove process-tree cleanup, external cancellation, or provider
+cleanup after the Ironbed process itself is lost.
 
 ## Container seat rehearsal
 
@@ -159,6 +169,6 @@ must determine:
 - how read-only model input and private persistent state become explicit
   provider grants without becoming Ironbed artifacts;
 - how an external-effect boundary is represented without claiming rollback;
-- how cancellation and output limits preserve the same observation-first
-  recovery rule;
+- how external cancellation, process-tree recovery, and output limits preserve
+  the same observation-first recovery rule;
 - which cleanup facts are meaningful for a reused execution surface.

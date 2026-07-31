@@ -16,17 +16,23 @@ pub(super) struct Cube {
 
 pub(super) struct Sshd(Child);
 
+struct Reply {
+    body: String,
+    wait: Duration,
+}
+
 impl Cube {
-    pub(super) fn start(port: u16, user: &str) -> Self {
+    pub(super) fn start(port: u16, user: &str, wait: Duration) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").expect("Cube listener");
         let target = format!("http://{}/", listener.local_addr().expect("Cube address"));
-        let responses = responses(port, user);
+        let responses = responses(port, user, wait);
         let (sender, requests) = mpsc::channel();
         let handle = thread::spawn(move || {
-            for body in responses {
+            for reply in responses {
                 let (mut stream, _) = listener.accept().expect("Cube connection");
                 sender.send(receive(&stream)).expect("Cube request");
-                respond(&mut stream, &body);
+                thread::sleep(reply.wait);
+                respond(&mut stream, &reply.body);
             }
         });
         Self {
@@ -49,7 +55,7 @@ impl Drop for Sshd {
     }
 }
 
-fn responses(port: u16, user: &str) -> Vec<String> {
+fn responses(port: u16, user: &str, wait: Duration) -> Vec<Reply> {
     let login = json!({
         "jwt": "fixture.jwt",
         "status": 200,
@@ -85,15 +91,18 @@ fn responses(port: u16, user: &str) -> Vec<String> {
         "jwt": null
     })
     .to_string();
-    vec![
-        login.clone(),
-        host.clone(),
-        power.clone(),
-        fence,
-        login,
-        host,
-        power,
+    [
+        (login.clone(), Duration::ZERO),
+        (host.clone(), Duration::ZERO),
+        (power.clone(), Duration::ZERO),
+        (fence, wait),
+        (login, Duration::ZERO),
+        (host, Duration::ZERO),
+        (power, Duration::ZERO),
     ]
+    .into_iter()
+    .map(|(body, wait)| Reply { body, wait })
+    .collect()
 }
 
 fn receive(stream: &TcpStream) -> String {
@@ -123,13 +132,12 @@ fn receive(stream: &TcpStream) -> String {
 }
 
 fn respond(stream: &mut TcpStream, body: &str) {
-    write!(
+    let _ = write!(
         stream,
         "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
         body.len(),
         body
-    )
-    .expect("Cube response");
+    );
 }
 
 pub(super) fn sshd(root: &Path) -> (Sshd, u16, String) {

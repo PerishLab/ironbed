@@ -1,15 +1,16 @@
 mod pipe;
+mod report;
 mod seat;
 
-use pipe::{Chunk, Stream};
 use seat::{Seat, Substrate};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
-use std::io::{self, Read, Write};
+use std::io::{self, Read};
 use std::path::Path;
 use std::process::{Command, ExitCode, Stdio};
 use std::sync::mpsc;
+use std::time::Duration;
 
 const ATTEMPT: &str = "ironbed.rehearsal/v0";
 const FRAME: &str = "ironbed.frame/v0";
@@ -32,6 +33,7 @@ struct Attempt {
     id: String,
     surface: Requirement,
     process: Process,
+    limits: Limits,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -51,31 +53,11 @@ struct Process {
     env: BTreeMap<String, String>,
 }
 
-struct Offset {
-    out: u64,
-    err: u64,
-}
-
-struct Output {
-    stream: Stream,
-    offset: u64,
-    bytes: Vec<u8>,
-}
-
-impl Offset {
-    fn new() -> Self {
-        Self { out: 0, err: 0 }
-    }
-
-    fn add(&mut self, stream: Stream, size: usize) -> u64 {
-        let offset = match stream {
-            Stream::Out => &mut self.out,
-            Stream::Err => &mut self.err,
-        };
-        let prior = *offset;
-        *offset += size as u64;
-        prior
-    }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Limits {
+    #[serde(rename = "timeout_ms")]
+    timeout: u64,
 }
 
 pub fn start(seat: &Path) -> ExitCode {
@@ -111,13 +93,15 @@ fn execute(path: &Path) -> Result<(), String> {
         None => return abort(&mut child, "child stderr is unavailable".to_string()),
     };
     let (send, receive) = mpsc::channel();
-    pipe::spawn(out, Stream::Out, send.clone());
-    pipe::spawn(err, Stream::Err, send);
+    pipe::spawn(out, pipe::Stream::Out, send.clone());
+    pipe::spawn(err, pipe::Stream::Err, send);
     let mut writer = io::stdout().lock();
-    if let Err(error) = emit(&mut writer, &started(&attempt, &seat, &observed)) {
+    let mut reporter = report::Reporter::new(&mut writer, &attempt.id);
+    if let Err(error) = reporter.emit(&started(&attempt, &seat, &observed)) {
         return abort(&mut child, error);
     }
-    let (sequence, offset, failed) = match drain(&mut writer, &attempt.id, receive) {
+    let timeout = Duration::from_millis(attempt.limits.timeout);
+    let drained = match reporter.drain(receive, &mut child, timeout) {
         Ok(drained) => drained,
         Err(error) => return abort(&mut child, error),
     };
@@ -125,50 +109,17 @@ fn execute(path: &Path) -> Result<(), String> {
         Ok(status) => status,
         Err(error) => return abort(&mut child, format!("cannot reap child: {error}")),
     };
-    if let Some(error) = failed {
-        return Err(error);
+    if let Some(error) = drained.failed.as_ref() {
+        return Err(error.clone());
     }
-    emit(
-        &mut writer,
-        &finished(&attempt.id, sequence, offset, status),
-    )
+    reporter.emit(&finished(&attempt.id, status, &drained))?;
+    Ok(())
 }
 
 fn abort(child: &mut std::process::Child, error: String) -> Result<(), String> {
     let _ = child.kill();
     let _ = child.wait();
     Err(error)
-}
-
-fn drain(
-    writer: &mut impl Write,
-    attempt: &str,
-    receive: mpsc::Receiver<Chunk>,
-) -> Result<(u64, Offset, Option<String>), String> {
-    let mut sequence = 1_u64;
-    let mut offset = Offset::new();
-    let mut done = 0_u8;
-    let mut failed = None;
-    while done < 2 {
-        match receive.recv().map_err(|error| error.to_string())? {
-            Chunk::Data(stream, data) => {
-                let start = offset.add(stream, data.len());
-                let output = Output {
-                    stream,
-                    offset: start,
-                    bytes: data,
-                };
-                emit(writer, &frame(attempt, sequence, output))?;
-                sequence += 1;
-            }
-            Chunk::Done => done += 1,
-            Chunk::Failed(stream, error) => {
-                failed = Some(format!("cannot read {}: {error}", stream.name()));
-                done += 1;
-            }
-        }
-    }
-    Ok((sequence, offset, failed))
 }
 
 fn read() -> Result<Attempt, String> {
@@ -197,6 +148,9 @@ fn validate(attempt: &Attempt, seat: &Seat) -> Result<(), String> {
     if attempt.process.env.keys().any(|key| key.is_empty()) {
         return Err("environment keys cannot be empty".to_string());
     }
+    if attempt.limits.timeout == 0 || attempt.limits.timeout > 86_400_000 {
+        return Err("timeout_ms must be 1 through 86400000".to_string());
+    }
     if attempt.surface.system != seat.surface.system {
         return Err(format!(
             "required system {} does not match provided {}",
@@ -222,12 +176,6 @@ fn command(attempt: &Attempt) -> Command {
     command
 }
 
-fn emit(writer: &mut impl Write, value: &Value) -> Result<(), String> {
-    serde_json::to_writer(&mut *writer, value).map_err(|error| error.to_string())?;
-    writer.write_all(b"\n").map_err(|error| error.to_string())?;
-    writer.flush().map_err(|error| error.to_string())
-}
-
 fn started(attempt: &Attempt, seat: &Seat, observed: &str) -> Value {
     json!({
         "schema": FRAME,
@@ -247,36 +195,20 @@ fn started(attempt: &Attempt, seat: &Seat, observed: &str) -> Value {
     })
 }
 
-fn frame(attempt: &str, sequence: u64, output: Output) -> Value {
+fn finished(attempt: &str, status: std::process::ExitStatus, drain: &report::Drain) -> Value {
     json!({
         "schema": FRAME,
         "attempt": attempt,
-        "sequence": sequence,
-        "kind": "output",
-        "stream": output.stream.name(),
-        "offset": output.offset,
-        "bytes": output.bytes
-    })
-}
-
-fn finished(
-    attempt: &str,
-    sequence: u64,
-    offset: Offset,
-    status: std::process::ExitStatus,
-) -> Value {
-    json!({
-        "schema": FRAME,
-        "attempt": attempt,
-        "sequence": sequence,
+        "sequence": drain.sequence,
         "kind": "finished",
         "process": {
             "success": status.success(),
-            "code": status.code()
+            "code": status.code(),
+            "termination": if drain.expired { "timeout" } else { "process" }
         },
         "evidence": {
-            "stdout_bytes": offset.out,
-            "stderr_bytes": offset.err
+            "stdout_bytes": drain.out,
+            "stderr_bytes": drain.err
         },
         "cleanup": {
             "process_reaped": true

@@ -12,6 +12,7 @@ use std::io::Write;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
+use std::time::Duration;
 
 struct Docker {
     image: String,
@@ -148,6 +149,9 @@ fn attempt(action: &str) -> Value {
             "env": {
                 "SSL_CERT_FILE": "/dut/ca.pem"
             }
+        },
+        "limits": {
+            "timeout_ms": 60000
         }
     })
 }
@@ -181,7 +185,7 @@ fn code(frames: &[Value]) -> Option<i64> {
 fn recovers() {
     let service = tempfile::tempdir().expect("service root");
     let (_sshd, port, user) = sshd(service.path());
-    let cube = Cube::start(port, &user);
+    let cube = Cube::start(port, &user, Duration::ZERO);
     let desired = tempfile::tempdir().expect("model root");
     model::fixture(desired.path(), &cube.target, port, &user);
     let before = fs::read(desired.path().join("hosts/example/one/host.toml")).expect("model");
