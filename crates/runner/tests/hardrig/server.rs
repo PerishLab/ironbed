@@ -10,6 +10,8 @@ use std::time::Duration;
 
 pub(super) struct Cube {
     pub(super) target: String,
+    #[allow(dead_code)]
+    pub(super) port: u16,
     requests: Receiver<String>,
     handle: JoinHandle<()>,
     seen: Vec<String>,
@@ -23,10 +25,21 @@ struct Reply {
 }
 
 impl Cube {
+    #[allow(dead_code)]
     pub(super) fn start(port: u16, user: &str, wait: Duration) -> Self {
+        Self::open(port, user, wait, "127.0.0.1")
+    }
+
+    #[allow(dead_code)]
+    pub(super) fn guest(port: u16, user: &str, wait: Duration) -> Self {
+        Self::open(port, user, wait, "10.0.2.100")
+    }
+
+    fn open(port: u16, user: &str, wait: Duration, host: &str) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").expect("Cube listener");
-        let target = format!("http://{}/", listener.local_addr().expect("Cube address"));
-        let responses = responses(port, user, wait);
+        let cube = listener.local_addr().expect("Cube address").port();
+        let target = format!("http://{host}:{cube}/");
+        let responses = responses(port, user, wait, host);
         let (sender, requests) = mpsc::channel();
         let handle = thread::spawn(move || {
             for reply in responses {
@@ -38,6 +51,7 @@ impl Cube {
         });
         Self {
             target,
+            port: cube,
             requests,
             handle,
             seen: Vec::new(),
@@ -69,7 +83,7 @@ impl Drop for Sshd {
     }
 }
 
-fn responses(port: u16, user: &str, wait: Duration) -> Vec<Reply> {
+fn responses(port: u16, user: &str, wait: Duration, host: &str) -> Vec<Reply> {
     let login = json!({
         "jwt": "fixture.jwt",
         "status": 200,
@@ -85,7 +99,7 @@ fn responses(port: u16, user: &str, wait: Duration) -> Vec<Reply> {
                 "domain": "fixture",
                 "domainstatus": "Active",
                 "os": "Linux_x86_64",
-                "dedicatedip": "127.0.0.1",
+                "dedicatedip": host,
                 "username": user,
                 "port": port,
                 "password": "unused"

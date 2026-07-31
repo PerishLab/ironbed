@@ -172,6 +172,53 @@ and Ubuntu image
 Building the same version label from Hardrig's earlier `main` did not satisfy
 the scenario, demonstrating why version text alone is not source binding.
 
+## VM seat rehearsal
+
+The same mutation-bearing case now crosses two complete QEMU VM seats. The
+reference adapter materializes each seat from:
+
+- the exact Ubuntu Noble x86-64 cloud image;
+- read-only OVMF code and fresh per-seat OVMF variables;
+- a fresh QCOW2 root overlay;
+- one read-only ISO containing Ironbed, the source-bound Hardrig binary, model,
+  and CA bundle;
+- one 128 MiB private ext4 disk retained across the two seats;
+- a fresh NoCloud seed, two virtual CPUs, 2 GiB of memory, and user networking.
+
+The rehearsal runs under TCG so it needs no KVM group or device permission.
+That makes it a slow but portable ground-truth path. KVM acceleration can
+replace TCG inside the adapter without changing the `linux-x86_64` and `vm`
+requirements.
+
+The network is closed by default. QEMU `restrict=on` blocks host and external
+reach, while two explicit guest forwards expose only the temporary HTTPS Cube
+double and SSH double. A one-day rehearsal CA signs the IP-address certificate
+for the guest endpoint. The CA certificate enters the read-only medium; its
+private key remains in the host-side temporary directory. The adapter verifies
+that its forwarding helpers are gone after each seat before starting another.
+
+The first guest runs `apply --yes`, creates and verifies the root seed on the
+private disk, and exits two at the Cube fence. The second guest has a new root
+overlay and new firmware variables but mounts the same private disk. Its
+authorized `plan` observes the seed as ready, exposes the SSH action, and exits
+zero. Both guests shut down, their attempt-local material is removed, the
+authored model remains byte-identical, and the Cube double receives the same
+seven requests as the host and container rehearsals.
+
+This confirms that the current resource classes and guest-local path grants
+survive a VM without provider-specific attempt vocabulary. It also shows that
+the root image alone cannot identify the boot surface: firmware code and
+per-seat firmware state remain separate provider facts. The private
+`ironbed.seat/v0` frame currently carries the root image digest, while the
+rehearsal adapter separately verifies its source and the firmware inputs.
+
+The exact validation used Ubuntu build `20260725` from
+[`noble/20260725`](https://cloud-images.ubuntu.com/noble/20260725/) with image
+digest
+`sha256:d1940f7d69d343355e183dff1e08a59852d32e7309baa7a4bad8365b11b005ac`,
+OVMF `2024.02-2ubuntu0.9`, QEMU `8.2.2`, and the same Hardrig commit and binary
+digest as the container rehearsal.
+
 ## Output and process-tree rehearsal
 
 The private attempt carries one retained-byte limit shared by stdout and
@@ -208,13 +255,16 @@ claim rollback of private state or remote effects.
 This scenario does not yet earn a stable wire shape. Further Linux pressure
 must determine:
 
-- whether the current path-grant classes survive a VM or remote provider
-  without growing provider-specific vocabulary;
+- which image, firmware, and source facts belong in durable provider evidence
+  without conflating a root disk with a complete boot identity;
+- how network grants become enumerable without embedding one provider's
+  forwarding vocabulary;
 - how an external-effect boundary is represented without claiming rollback;
 - whether output exhaustion always terminates or may switch to a separately
   bounded artifact transfer without weakening evidence truth;
 - how external cancellation enters the same process-group and provider cleanup
   boundary;
-- which provider cleanup attestations are sufficient before a seat is reused;
+- which provider cleanup attestations are sufficient before a seat is reused,
+  including helpers outside the guest process tree;
 - whether Hardrig eventually emits a structured domain result or leaves that
   interpretation in its consumer adapter.

@@ -84,6 +84,19 @@ the provider's mount, identity, network, or source assertions.
 Destroying a seat does not roll back consumer-owned private state or an
 indeterminate remote effect.
 
+The VM rehearsal preserves the same guest-local grants used by the host and
+container cases. Its provider maps an immutable input medium, a persistent
+private disk, and attempt-local root and firmware state into those paths.
+Neither the attempt nor the runner learns the provider's host paths or block
+device layout.
+
+A root image digest is not the complete boot identity. The successful Linux
+case also required immutable firmware code and fresh per-seat firmware
+variables. Those remain provider materialization facts until another provider
+earns a transport-neutral shape. Acceleration is likewise an adapter choice:
+TCG and KVM may exercise the same declared `linux-x86_64` VM surface without
+changing the attempt.
+
 ## Live supervision boundary
 
 The runner uses a bounded channel between each operating-system pipe and the
