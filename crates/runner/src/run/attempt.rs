@@ -1,4 +1,7 @@
-use super::seat::{Seat, Substrate};
+use super::{
+    artifact::{self, Request},
+    seat::{Seat, Substrate},
+};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::io::{self, Read};
@@ -13,6 +16,8 @@ pub(super) struct Attempt {
     pub(super) id: String,
     pub(super) surface: Requirement,
     pub(super) resources: Vec<String>,
+    #[serde(default)]
+    pub(super) artifacts: Vec<Request>,
     pub(super) process: Process,
     pub(super) limits: Limits,
 }
@@ -41,6 +46,8 @@ pub(super) struct Limits {
     pub(super) timeout: u64,
     #[serde(rename = "output_bytes")]
     pub(super) output: u64,
+    #[serde(default, rename = "artifact_bytes")]
+    pub(super) artifact: u64,
 }
 
 impl Attempt {
@@ -76,6 +83,7 @@ impl Attempt {
         if self.limits.output == 0 || self.limits.output > 1_073_741_824 {
             return Err("output_bytes must be 1 through 1073741824".to_string());
         }
+        artifact::validate(&self.artifacts, seat, &self.resources, self.limits.artifact)?;
         if self.surface.system != seat.surface.system {
             return Err(format!(
                 "required system {} does not match provided {}",

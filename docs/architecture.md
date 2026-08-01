@@ -88,6 +88,13 @@ content digest and source identity. Ironbed checks that its program and working
 directory are covered by required grants, but it does not claim to have proved
 the provider's mount, identity, network, or source assertions.
 
+An artifact target is a separate provider resource class. It is deliberately
+absent from the process resource list while the attempt names a source inside
+one required temporary grant. The provider must keep the target outside the
+child boundary; the host rehearsal uses distinct paths but does not claim to
+enforce mount isolation. Ironbed opens the target only after process
+supervision and direct-process reap.
+
 Destroying a seat does not roll back consumer-owned private state or an
 indeterminate remote effect.
 
@@ -143,6 +150,26 @@ destroy the container, VM, cgroup, or lease boundary and separately attest that
 fact. A new authorized attempt must observe any retained private state or
 indeterminate external effect before deciding what to do next.
 
+## Artifact boundary
+
+The private runner accepts an ordered set of single-file artifact requests. An
+artifact ID selects a fresh final name inside one supplied artifact target. Its
+source must resolve inside a required temporary grant. The target must not also
+be a process resource.
+
+Artifact bytes have one shared limit independent from retained stdout and
+stderr. After the child is reaped, Ironbed streams each source through that
+limit, computes its SHA-256 digest, syncs and seals a fresh staging file, and
+publishes it without replacing an existing name. Artifact frames precede the
+single finished frame. The finished frame records total published bytes, the
+limit, and any transfer failure.
+
+Output exhaustion, timeout, cancellation, and ordinary process exit therefore
+share the same bounded artifact phase. A transfer failure is a terminal fact;
+it never causes Ironbed to repeat the process. Runner loss before that phase
+produces no artifact claim, and durable retention after publication remains a
+provider responsibility.
+
 ## Day 0 topology
 
 Two physical repositories carry three concepts:
@@ -165,6 +192,8 @@ Hardrig Linux estate delivery is the first real device under test. Its working
 scenario lives in [`scenarios/hardrig.md`](scenarios/hardrig.md).
 The provider cleanup and reuse pressure lives in
 [`scenarios/reuse.md`](scenarios/reuse.md).
+The separate artifact budget and target pressure lives in
+[`scenarios/actions.md`](scenarios/actions.md).
 The scenario distinguishes the execution surface, the consumer-owned delivery
 target, and any artifact target before assigning fields to any of them.
 

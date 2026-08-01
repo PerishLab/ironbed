@@ -1,3 +1,4 @@
+mod artifact;
 mod attempt;
 mod cancel;
 mod child;
@@ -70,7 +71,7 @@ fn execute(path: &Path, control: Option<&Path>) -> Result<(), String> {
         return child::abort(&mut child, error);
     }
     let timeout = Duration::from_millis(attempt.limits.timeout);
-    let drained = match reporter.drain(receive, &mut child, timeout, attempt.limits.output) {
+    let mut drained = match reporter.drain(receive, &mut child, timeout, attempt.limits.output) {
         Ok(drained) => drained,
         Err(error) => return child::abort(&mut child, error),
     };
@@ -81,7 +82,14 @@ fn execute(path: &Path, control: Option<&Path>) -> Result<(), String> {
     if let Some(error) = drained.failed.as_ref() {
         return Err(error.clone());
     }
-    reporter.emit(&finished(&attempt.id, status, &drained))?;
+    let artifacts = artifact::collect(&attempt.artifacts, &seat, attempt.limits.artifact);
+    let mut sequence = drained.sequence;
+    for item in &artifacts.items {
+        reporter.emit(&artifact::frame(&attempt.id, sequence, item))?;
+        sequence += 1;
+    }
+    drained.sequence = sequence;
+    reporter.emit(&finished(&attempt.id, status, &drained, &artifacts))?;
     Ok(())
 }
 
@@ -108,7 +116,12 @@ fn started(attempt: &Attempt, seat: &Seat, observed: &str) -> Value {
     })
 }
 
-fn finished(attempt: &str, status: std::process::ExitStatus, drain: &report::Drain) -> Value {
+fn finished(
+    attempt: &str,
+    status: std::process::ExitStatus,
+    drain: &report::Drain,
+    artifacts: &artifact::Outcome,
+) -> Value {
     json!({
         "schema": FRAME,
         "attempt": attempt,
@@ -125,6 +138,12 @@ fn finished(attempt: &str, status: std::process::ExitStatus, drain: &report::Dra
             "discarded_stdout_bytes": drain.lost.out,
             "discarded_stderr_bytes": drain.lost.err,
             "output_limit_bytes": drain.limit
+        },
+        "artifacts": {
+            "complete": artifacts.failed.is_none(),
+            "bytes": artifacts.bytes,
+            "limit_bytes": artifacts.limit,
+            "error": artifacts.failed
         },
         "cleanup": {
             "direct_process_reaped": true,
