@@ -1,3 +1,4 @@
+use super::{FACTS, provider::Cleanup};
 use std::fs;
 use std::io::Write;
 use std::os::unix::net::UnixStream;
@@ -7,6 +8,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 pub(super) struct Guest {
+    generation: String,
     child: Child,
     root: Option<tempfile::TempDir>,
     serial: std::path::PathBuf,
@@ -14,6 +16,7 @@ pub(super) struct Guest {
     channel: Option<UnixStream>,
     cube: u16,
     ssh: u16,
+    private: std::path::PathBuf,
     done: bool,
 }
 
@@ -23,6 +26,7 @@ pub(super) struct Spec<'a> {
     pub(super) overlay: &'a Path,
     pub(super) state: &'a Path,
     pub(super) media: &'a Path,
+    pub(super) descriptor: &'a Path,
     pub(super) seed: &'a Path,
     pub(super) serial: &'a Path,
     pub(super) cube: u16,
@@ -50,6 +54,7 @@ impl Guest {
             .args(["-drive", &drive(spec.overlay, "qcow2", false)])
             .args(["-drive", &drive(spec.state, "raw", false)])
             .args(["-drive", &drive(spec.media, "raw", true)])
+            .args(["-drive", &drive(spec.descriptor, "raw", true)])
             .args(["-drive", &drive(spec.seed, "raw", true)])
             .args(["-netdev", &network])
             .args(["-device", "virtio-net-pci,netdev=net0"])
@@ -72,6 +77,7 @@ impl Guest {
             panic!("VM cancellation channel did not listen");
         });
         Self {
+            generation: name.to_string(),
             child,
             root: Some(root),
             serial: spec.serial.to_path_buf(),
@@ -79,11 +85,16 @@ impl Guest {
             channel: Some(channel),
             cube: spec.cube,
             ssh: spec.ssh,
+            private: spec.state.to_path_buf(),
             done: false,
         }
     }
 
-    pub(super) fn finish(mut self) {
+    pub(super) fn generation(&self) -> &str {
+        &self.generation
+    }
+
+    pub(super) fn finish(mut self) -> Cleanup {
         let status = wait(&mut self.child, &self.serial);
         assert!(
             status.success(),
@@ -91,17 +102,17 @@ impl Guest {
             status,
             fs::read_to_string(&self.serial).unwrap_or_default()
         );
-        self.close();
+        self.close()
     }
 
-    pub(super) fn lose(mut self) {
+    pub(super) fn lose(mut self) -> Cleanup {
         self.child.kill().expect("kill QEMU seat");
         let status = self.child.wait().expect("reap lost QEMU seat");
         assert!(!status.success(), "lost QEMU seat exited successfully");
-        self.close();
+        self.close()
     }
 
-    pub(super) fn cancel(mut self) {
+    pub(super) fn cancel(mut self) -> Cleanup {
         self.channel
             .as_mut()
             .expect("VM cancellation channel")
@@ -114,10 +125,10 @@ impl Guest {
             status,
             fs::read_to_string(&self.serial).unwrap_or_default()
         );
-        self.close();
+        self.close()
     }
 
-    fn close(&mut self) {
+    fn close(&mut self) -> Cleanup {
         assert!(clean(self.cube), "VM bridge remained for Cube");
         assert!(clean(self.ssh), "VM bridge remained for SSH");
         self.channel.take();
@@ -125,8 +136,20 @@ impl Guest {
             UnixStream::connect(&self.control).is_err(),
             "VM cancellation channel remained"
         );
+        assert!(
+            self.private.is_file(),
+            "consumer private medium was removed"
+        );
+        let root = self
+            .root
+            .as_ref()
+            .expect("VM seat root")
+            .path()
+            .to_path_buf();
         self.root.take();
+        assert!(!root.exists(), "VM attempt-local material remained");
         self.done = true;
+        Cleanup::new(self.generation.clone(), FACTS)
     }
 }
 

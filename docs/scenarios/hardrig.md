@@ -270,6 +270,14 @@ claim rollback of private state or remote effects. The observed seed survived
 this exercised loss, but the rehearsal does not promise durability for
 arbitrary consumer writes that were never flushed.
 
+## Cleanup and reuse rehearsal
+
+The adapters now bind cleanup and replacement offers to distinct opaque
+provider generations. They enumerate retired temporary material and helpers
+separately from retained private media. The complete authority split, container
+and VM evidence, and deliberately unearned protocol questions live in the
+[`seat cleanup and reuse scenario`](reuse.md).
+
 ## Pressure still needed
 
 This scenario does not yet earn a stable wire shape. Further Linux pressure
@@ -284,8 +292,8 @@ must determine:
   bounded artifact transfer without weakening evidence truth;
 - how cancellation authority, replay, and acknowledgement become
   provider-neutral without conflating control transport and seat destruction;
-- which provider cleanup attestations are sufficient before a seat is reused,
-  including helpers outside the guest process tree;
+- how the exercised provider cleanup facts are authenticated, transported, and
+  acknowledged without merging them into the runner terminal receipt;
 - how private-storage durability is declared and tested without confusing
   retained media with a guarantee for unflushed consumer writes;
 - whether Hardrig eventually emits a structured domain result or leaves that

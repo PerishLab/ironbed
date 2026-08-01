@@ -73,6 +73,13 @@ provider supplies an absolute `ironbed.seat/v0` descriptor through `--seat`.
 The started evidence retains required, provided, and independently observed
 surface facts without presenting all three as runner observations.
 
+Every private v0 descriptor now carries one provider-assigned opaque seat
+generation. The runner retains it in started evidence so later provider cleanup
+can name the exact boundary it retired. A generation is neither a clock nor a
+globally ordered sequence, and the runner does not authenticate or interpret
+it. Reuse pressure requires only that a replacement offer not reuse the retired
+generation.
+
 The same private descriptor now names only the provider grants exercised by the
 Hardrig scenario: read-only input, consumer-owned private state, and
 attempt-temporary paths. An attempt refers to those grants by ID. The provider
@@ -156,6 +163,8 @@ a resource, and a possible field is not yet state.
 
 Hardrig Linux estate delivery is the first real device under test. Its working
 scenario lives in [`scenarios/hardrig.md`](scenarios/hardrig.md).
+The provider cleanup and reuse pressure lives in
+[`scenarios/reuse.md`](scenarios/reuse.md).
 The scenario distinguishes the execution surface, the consumer-owned delivery
 target, and any artifact target before assigning fields to any of them.
 
