@@ -13,6 +13,13 @@ pub(super) struct Trial<'a> {
     pub(super) resources: &'a [&'a str],
     pub(super) timeout: u64,
     pub(super) output: u64,
+    pub(super) artifact: Option<Export<'a>>,
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct Export<'a> {
+    pub(super) target: &'a Path,
+    pub(super) limit: u64,
 }
 
 pub(super) fn system() -> String {
@@ -30,6 +37,39 @@ pub(super) fn launch(trial: Trial<'_>) -> (std::process::ExitStatus, Vec<Value>)
     let binary = env!("CARGO_BIN_EXE_ironbed");
     let cwd = tempfile::tempdir().expect("temporary cwd");
     let seat = cwd.path().join("seat.json");
+    let source = cwd.path().join("artifact");
+    let mut resources = vec![
+        json!({
+            "id": "program",
+            "path": trial.program,
+            "class": "read_only"
+        }),
+        json!({
+            "id": "cwd",
+            "path": cwd.path(),
+            "class": "temporary"
+        }),
+    ];
+    let mut artifacts = Vec::new();
+    let mut env = json!({});
+    let limit = match trial.artifact {
+        Some(export) => {
+            resources.push(json!({
+                "id": "artifact",
+                "path": export.target,
+                "class": "artifact"
+            }));
+            artifacts.push(json!({
+                "id": "artifact",
+                "source": source,
+                "grant": "cwd",
+                "target": "artifact"
+            }));
+            env = json!({"IRONBED_ARTIFACT": source});
+            export.limit
+        }
+        None => 0,
+    };
     fs::write(
         &seat,
         serde_json::to_vec(&json!({
@@ -43,18 +83,7 @@ pub(super) fn launch(trial: Trial<'_>) -> (std::process::ExitStatus, Vec<Value>)
             "provider": {
                 "identity": "current",
                 "network": "inherited",
-                "resources": [
-                    {
-                        "id": "program",
-                        "path": trial.program,
-                        "class": "read_only"
-                    },
-                    {
-                        "id": "cwd",
-                        "path": cwd.path(),
-                        "class": "temporary"
-                    }
-                ]
+                "resources": resources
             }
         }))
         .expect("seat"),
@@ -68,15 +97,17 @@ pub(super) fn launch(trial: Trial<'_>) -> (std::process::ExitStatus, Vec<Value>)
             "substrate": "host"
         },
         "resources": trial.resources,
+        "artifacts": artifacts,
         "process": {
             "program": trial.program,
             "args": trial.args,
             "cwd": cwd.path(),
-            "env": {}
+            "env": env
         },
         "limits": {
             "timeout_ms": trial.timeout,
-            "output_bytes": trial.output
+            "output_bytes": trial.output,
+            "artifact_bytes": limit
         }
     });
     let mut child = Command::new(binary)
@@ -118,6 +149,7 @@ pub(super) fn offer(
         resources: &["program", "cwd"],
         timeout: 5_000,
         output: 1_048_576,
+        artifact: None,
     })
 }
 

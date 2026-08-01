@@ -1,3 +1,7 @@
+#[path = "run/actions.rs"]
+mod actions;
+#[path = "run/artifact.rs"]
+mod artifact;
 #[path = "run/fixture.rs"]
 mod fixture;
 
@@ -80,6 +84,7 @@ fn generation() {
         resources: &["program", "cwd"],
         timeout: 5_000,
         output: 1_048_576,
+        artifact: None,
     });
     assert_eq!(status.code(), Some(2));
     assert!(frames.is_empty());
@@ -97,6 +102,7 @@ fn grants() {
         resources: &["cwd"],
         timeout: 5_000,
         output: 1_048_576,
+        artifact: None,
     });
     assert_eq!(status.code(), Some(2));
     assert!(frames.is_empty());
@@ -115,6 +121,7 @@ fn expires() {
         resources: &["program", "cwd"],
         timeout: 10,
         output: 1_048_576,
+        artifact: None,
     });
     assert!(status.success());
     assert_eq!(
@@ -143,6 +150,7 @@ fn output() {
         resources: &["program", "cwd"],
         timeout: 5_000,
         output: 16,
+        artifact: None,
     });
     assert!(status.success());
     let finished = frames.last().expect("finished frame");
@@ -181,6 +189,7 @@ fn tree() {
         resources: &["program", "cwd"],
         timeout: 50,
         output: 1_048_576,
+        artifact: None,
     });
     assert!(status.success());
     assert!(started.elapsed() < std::time::Duration::from_secs(2));

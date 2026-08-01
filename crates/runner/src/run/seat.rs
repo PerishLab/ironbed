@@ -51,13 +51,14 @@ pub(super) struct Resource {
     source: Option<String>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Copy, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub(super) enum Class {
     #[serde(rename = "read_only")]
     Input,
     Private,
     Temporary,
+    Artifact,
 }
 
 pub(super) fn read(path: &Path) -> Result<Seat, String> {
@@ -99,6 +100,12 @@ fn validate(provider: &Provider) -> Result<(), String> {
         if !path.is_absolute() || !path.exists() {
             return Err(format!(
                 "resource {} path must be one existing absolute path",
+                resource.id
+            ));
+        }
+        if resource.class == Class::Artifact && !path.is_dir() {
+            return Err(format!(
+                "artifact resource {} path must be one directory",
                 resource.id
             ));
         }

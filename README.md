@@ -11,4 +11,6 @@ is the first real pressure scenario; it will decide the model through execution.
 
 See [`docs/architecture.md`](docs/architecture.md), the
 [`Hardrig Linux scenario`](docs/scenarios/hardrig.md), and the
-[`cancellation scenario`](docs/scenarios/cancellation.md).
+[`cancellation scenario`](docs/scenarios/cancellation.md). The first direct
+consumer artifact pressure is the
+[`Actions exact setup scenario`](docs/scenarios/actions.md).
