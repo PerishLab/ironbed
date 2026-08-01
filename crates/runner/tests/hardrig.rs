@@ -29,6 +29,7 @@ fn submit(trial: Trial<'_>) -> (Output, Vec<Value>) {
         &mut seat,
         &json!({
             "schema": "ironbed.seat/v0",
+            "generation": format!("hardrig-host-{}", trial.action),
             "surface": {
                 "system": system(),
                 "substrate": "host",

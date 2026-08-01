@@ -91,6 +91,9 @@ fn started(attempt: &Attempt, seat: &Seat, observed: &str) -> Value {
         "attempt": attempt.id,
         "sequence": 0,
         "kind": "started",
+        "seat": {
+            "generation": seat.generation
+        },
         "surface": {
             "required": attempt.surface,
             "provided": seat.surface,

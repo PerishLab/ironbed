@@ -2,19 +2,32 @@
 
 #[path = "container/docker.rs"]
 mod docker;
+#[path = "support/frame.rs"]
+mod frame;
 #[path = "container/instance.rs"]
 mod instance;
 #[path = "hardrig/model.rs"]
 mod model;
+#[path = "support/provider.rs"]
+mod provider;
 #[path = "hardrig/server.rs"]
 mod server;
 
-use docker::{Docker, bytes, code, result};
+use docker::Docker;
+use frame::{bytes, code};
 use instance::Instance;
+use provider::Facts;
 use server::{Cube, sshd};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::time::Duration;
+
+const FACTS: Facts = Facts::new(
+    "container",
+    &["attempt-temporary", "container-root"],
+    &[],
+    &["private-state"],
+);
 
 #[test]
 #[ignore = "requires Docker, a Linux image, a source-bound real Hardrig binary, sha256sum, sshd, and ssh-keygen"]
@@ -30,14 +43,18 @@ fn recovers() {
     model::state(&state);
     let seat = Docker::new(&state);
 
-    let (apply, frames) = seat.run(desired.path(), &state, "apply");
+    let first = seat.run(desired.path(), &state, "apply");
+    let apply = first.output;
+    let frames = first.frames;
     assert!(apply.status.success(), "{apply:?}");
+    assert_eq!(frames[0]["seat"]["generation"], first.generation);
     assert_eq!(frames[0]["surface"]["required"]["substrate"], "container");
     assert_eq!(frames[0]["surface"]["provided"]["substrate"], "container");
     assert_eq!(frames[0]["surface"]["authority"]["substrate"], "provider");
     assert_eq!(frames[0]["provider"]["identity"], seat.user);
     assert_eq!(frames[0]["provider"]["network"], "host");
     assert_eq!(frames[0]["provider"]["resources"][2]["class"], "private");
+    assert_eq!(frames[0]["provider"]["resources"][4]["class"], "temporary");
     assert_eq!(frames[0]["provider"]["resources"][0]["digest"], seat.seal);
     assert_eq!(frames[0]["provider"]["resources"][0]["source"], seat.origin);
     assert_eq!(code(&frames), Some(2));
@@ -54,13 +71,19 @@ fn recovers() {
             & 0o777,
         0o600
     );
+    first.cleanup.proves(&first.generation, FACTS);
 
-    let (plan, frames) = seat.run(desired.path(), &state, "plan");
+    let second = seat.run(desired.path(), &state, "plan");
+    assert_ne!(first.generation, second.generation);
+    let plan = second.output;
+    let frames = second.frames;
     assert!(plan.status.success(), "{plan:?}");
+    assert_eq!(frames[0]["seat"]["generation"], second.generation);
     assert_eq!(code(&frames), Some(0));
     let stdout = String::from_utf8(bytes(&frames, "stdout")).expect("Hardrig stdout");
     assert!(stdout.contains("observed resource.seed: ready"));
     assert!(stdout.contains("observed session.ssh: change"));
+    second.cleanup.proves(&second.generation, FACTS);
     assert_eq!(
         fs::read(desired.path().join("hosts/example/one/host.toml")).expect("model"),
         before
@@ -83,12 +106,14 @@ fn loss() {
     let seat = Docker::new(&state);
     let instance = Instance::new("loss");
 
-    let (_descriptor, child) = seat.spawn(desired.path(), &state, "apply", Some(instance.name()));
+    let running = seat.spawn(desired.path(), &state, "apply", &instance);
     cube.wait(4, Duration::from_secs(5));
     let seed = state.join("secrets/roots/liberte.top.json");
     assert!(seed.is_file());
     instance.remove();
-    let (lost, frames) = result(child);
+    let completed = running.finish(&instance);
+    let lost = completed.output;
+    let frames = completed.frames;
     assert!(!lost.status.success(), "{lost:?}");
     assert!(
         frames.iter().all(|frame| frame["kind"] != "finished"),
@@ -96,8 +121,12 @@ fn loss() {
     );
     instance.absent();
     assert!(seed.is_file());
+    completed.cleanup.proves(instance.name(), FACTS);
 
-    let (plan, frames) = seat.run(desired.path(), &state, "plan");
+    let recovered = seat.run(desired.path(), &state, "plan");
+    assert_ne!(instance.name(), recovered.generation);
+    let plan = recovered.output;
+    let frames = recovered.frames;
     assert!(plan.status.success(), "{plan:?}");
     assert_eq!(code(&frames), Some(0));
     let stdout = String::from_utf8(bytes(&frames, "stdout")).expect("Hardrig stdout");
@@ -125,12 +154,14 @@ fn cancels() {
     let seat = Docker::new(&state);
     let instance = Instance::new("cancel");
 
-    let (_descriptor, child) = seat.spawn(desired.path(), &state, "apply", Some(instance.name()));
+    let running = seat.spawn(desired.path(), &state, "apply", &instance);
     cube.wait(4, Duration::from_secs(5));
     let seed = state.join("secrets/roots/liberte.top.json");
     assert!(seed.is_file());
     instance.cancel();
-    let (cancelled, frames) = result(child);
+    let completed = running.finish(&instance);
+    let cancelled = completed.output;
+    let frames = completed.frames;
     assert!(cancelled.status.success(), "{cancelled:?}");
     let finished = frames.last().expect("finished frame");
     assert_eq!(finished["process"]["termination"], "cancelled");
@@ -141,8 +172,12 @@ fn cancels() {
     );
     instance.absent();
     assert!(seed.is_file());
+    completed.cleanup.proves(instance.name(), FACTS);
 
-    let (plan, frames) = seat.run(desired.path(), &state, "plan");
+    let recovered = seat.run(desired.path(), &state, "plan");
+    assert_ne!(instance.name(), recovered.generation);
+    let plan = recovered.output;
+    let frames = recovered.frames;
     assert!(plan.status.success(), "{plan:?}");
     assert_eq!(code(&frames), Some(0));
     let stdout = String::from_utf8(bytes(&frames, "stdout")).expect("Hardrig stdout");

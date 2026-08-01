@@ -19,6 +19,7 @@ impl Session {
             &seat,
             serde_json::to_vec(&json!({
                 "schema": "ironbed.seat/v0",
+                "generation": "host-cancel",
                 "surface": {
                     "system": system(),
                     "substrate": "host",

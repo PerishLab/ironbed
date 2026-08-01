@@ -1,9 +1,24 @@
+use super::{FACTS, instance::Instance, provider::Cleanup};
 use serde_json::{Value, json};
 use std::fs;
 use std::io::Write;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
+
+pub(super) struct Completed {
+    pub(super) generation: String,
+    pub(super) output: Output,
+    pub(super) frames: Vec<Value>,
+    pub(super) cleanup: Cleanup,
+}
+
+pub(super) struct Running {
+    generation: String,
+    descriptor: tempfile::NamedTempFile,
+    temporary: tempfile::TempDir,
+    child: Child,
+}
 
 pub(super) struct Docker {
     image: String,
@@ -40,9 +55,10 @@ impl Docker {
         }
     }
 
-    pub(super) fn run(&self, model: &Path, state: &Path, action: &str) -> (Output, Vec<Value>) {
-        let (_descriptor, child) = self.spawn(model, state, action, None);
-        result(child)
+    pub(super) fn run(&self, model: &Path, state: &Path, action: &str) -> Completed {
+        let instance = Instance::new(action);
+        self.spawn(model, state, action, &instance)
+            .finish(&instance)
     }
 
     pub(super) fn spawn(
@@ -50,13 +66,15 @@ impl Docker {
         model: &Path,
         state: &Path,
         action: &str,
-        name: Option<&str>,
-    ) -> (tempfile::NamedTempFile, Child) {
+        instance: &Instance,
+    ) -> Running {
+        let temporary = tempfile::tempdir().expect("attempt temporary resource");
         let mut descriptor = tempfile::NamedTempFile::new().expect("seat");
         serde_json::to_writer(
             &mut descriptor,
             &json!({
                 "schema": "ironbed.seat/v0",
+                "generation": instance.name(),
                 "surface": {
                     "system": system(),
                     "substrate": "container",
@@ -87,6 +105,11 @@ impl Docker {
                             "id": "ca-bundle",
                             "path": "/dut/ca.pem",
                             "class": "read_only"
+                        },
+                        {
+                            "id": "attempt-temporary",
+                            "path": "/scratch",
+                            "class": "temporary"
                         }
                     ]
                 }
@@ -103,6 +126,7 @@ impl Docker {
         );
         let model = mount(model, "/model", true);
         let state = mount(state, "/state", false);
+        let grant = mount(temporary.path(), "/scratch", false);
         let seat = mount(descriptor.path(), "/dut/seat.json", true);
         let input = attempt(action);
         let mut command = Command::new("docker");
@@ -115,12 +139,11 @@ impl Docker {
             "--user",
             &self.user,
         ]);
-        if let Some(name) = name {
-            command.args(["--name", name]);
-        }
+        command.args(["--name", instance.name()]);
         let mut child = command
             .args(["--mount", &ironbed, "--mount", &hardrig, "--mount", &ca])
-            .args(["--mount", &model, "--mount", &state, "--mount", &seat])
+            .args(["--mount", &model, "--mount", &state, "--mount", &grant])
+            .args(["--mount", &seat])
             .args(["--workdir", "/model", "--entrypoint", "/dut/ironbed"])
             .arg(&self.image)
             .args(["run", "--seat", "/dut/seat.json"])
@@ -132,19 +155,38 @@ impl Docker {
         serde_json::to_writer(child.stdin.as_mut().expect("container stdin"), &input)
             .expect("attempt");
         drop(child.stdin.take());
-        (descriptor, child)
+        Running {
+            generation: instance.name().to_string(),
+            descriptor,
+            temporary,
+            child,
+        }
     }
 }
 
-pub(super) fn result(child: Child) -> (Output, Vec<Value>) {
-    let output = child.wait_with_output().expect("container result");
-    let frames = output
-        .stdout
-        .split(|byte| *byte == b'\n')
-        .filter(|line| !line.is_empty())
-        .map(|line| serde_json::from_slice(line).expect("Ironbed frame"))
-        .collect();
-    (output, frames)
+impl Running {
+    pub(super) fn finish(self, instance: &Instance) -> Completed {
+        let output = self.child.wait_with_output().expect("container result");
+        let frames = output
+            .stdout
+            .split(|byte| *byte == b'\n')
+            .filter(|line| !line.is_empty())
+            .map(|line| serde_json::from_slice(line).expect("Ironbed frame"))
+            .collect();
+        instance.absent();
+        let descriptor = self.descriptor.path().to_path_buf();
+        let temporary = self.temporary.path().to_path_buf();
+        drop(self.descriptor);
+        drop(self.temporary);
+        assert!(!descriptor.exists(), "seat descriptor remained");
+        assert!(!temporary.exists(), "attempt temporary resource remained");
+        Completed {
+            generation: self.generation.clone(),
+            output,
+            frames,
+            cleanup: Cleanup::new(self.generation, FACTS),
+        }
+    }
 }
 
 fn digest(image: &str) -> String {
@@ -202,13 +244,20 @@ fn attempt(action: &str) -> Value {
             "system": system(),
             "substrate": "container"
         },
-        "resources": ["hardrig", "model", "private-state", "ca-bundle"],
+        "resources": [
+            "hardrig",
+            "model",
+            "private-state",
+            "ca-bundle",
+            "attempt-temporary"
+        ],
         "process": {
             "program": "/dut/hardrig",
             "args": args,
             "cwd": "/model",
             "env": {
-                "SSL_CERT_FILE": "/dut/ca.pem"
+                "SSL_CERT_FILE": "/dut/ca.pem",
+                "TMPDIR": "/scratch"
             }
         },
         "limits": {
@@ -220,24 +269,4 @@ fn attempt(action: &str) -> Value {
 
 fn system() -> String {
     format!("linux-{}", std::env::consts::ARCH)
-}
-
-pub(super) fn bytes(frames: &[Value], stream: &str) -> Vec<u8> {
-    frames
-        .iter()
-        .filter(|frame| frame["kind"] == "output" && frame["stream"] == stream)
-        .flat_map(|frame| {
-            frame["bytes"]
-                .as_array()
-                .expect("output bytes")
-                .iter()
-                .map(|byte| byte.as_u64().expect("byte") as u8)
-        })
-        .collect()
-}
-
-pub(super) fn code(frames: &[Value]) -> Option<i64> {
-    frames
-        .last()
-        .and_then(|frame| frame["process"]["code"].as_i64())
 }

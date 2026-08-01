@@ -9,6 +9,7 @@ const SCHEMA: &str = "ironbed.seat/v0";
 #[serde(deny_unknown_fields)]
 pub(super) struct Seat {
     schema: String,
+    pub(super) generation: String,
     pub(super) surface: Surface,
     pub(super) provider: Provider,
 }
@@ -68,6 +69,9 @@ pub(super) fn read(path: &Path) -> Result<Seat, String> {
         serde_json::from_slice(&bytes).map_err(|error| format!("invalid seat: {error}"))?;
     if seat.schema != SCHEMA {
         return Err(format!("seat schema must be {SCHEMA}"));
+    }
+    if seat.generation.is_empty() || seat.generation.len() > 128 {
+        return Err("seat generation must contain 1 through 128 bytes".to_string());
     }
     if seat.surface.image.as_ref().is_some_and(String::is_empty) {
         return Err("provided image cannot be empty".to_string());

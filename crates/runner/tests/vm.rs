@@ -1,11 +1,15 @@
 #![cfg(target_os = "linux")]
 
+#[path = "support/frame.rs"]
+mod frame;
 #[path = "vm/guest.rs"]
 mod guest;
 #[path = "vm/media.rs"]
 mod media;
 #[path = "hardrig/model.rs"]
 mod model;
+#[path = "support/provider.rs"]
+mod provider;
 #[path = "vm/qemu.rs"]
 mod qemu;
 #[path = "hardrig/server.rs"]
@@ -13,6 +17,7 @@ mod server;
 #[path = "vm/tls.rs"]
 mod tls;
 
+use provider::Facts;
 use qemu::Qemu;
 use serde_json::Value;
 use server::{Cube, Sshd, sshd};
@@ -21,6 +26,21 @@ use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
 use tls::Tls;
+
+const FACTS: Facts = Facts::new(
+    "vm",
+    &[
+        "attempt-temporary",
+        "cloud-seed",
+        "control-socket",
+        "firmware-variables",
+        "root-overlay",
+        "seat-descriptor",
+        "serial",
+    ],
+    &["network-forwarding"],
+    &["private-state"],
+);
 
 struct Input<'a> {
     image: &'a Path,
@@ -98,54 +118,55 @@ impl Lab {
     }
 }
 
-fn bytes(frames: &[Value], stream: &str) -> Vec<u8> {
-    frames
-        .iter()
-        .filter(|frame| frame["kind"] == "output" && frame["stream"] == stream)
-        .flat_map(|frame| {
-            frame["bytes"]
-                .as_array()
-                .expect("output bytes")
-                .iter()
-                .map(|byte| byte.as_u64().expect("byte") as u8)
-        })
-        .collect()
-}
-
-fn code(frames: &[Value]) -> Option<i64> {
-    frames
-        .last()
-        .and_then(|frame| frame["process"]["code"].as_i64())
-}
-
 #[test]
 #[ignore = "requires QEMU, OVMF, cloud-localds, genisoimage, mkfs.ext4, debugfs, netcat, OpenSSL, socat, a verified Linux x86-64 cloud image, a source-bound Hardrig binary, sshd, and ssh-keygen"]
 fn recovers() {
     let lab = Lab::new(Duration::ZERO);
     let first = lab.rig.run("first", "apply");
-    assert_eq!(first[0]["surface"]["required"]["substrate"], "vm");
-    assert_eq!(first[0]["surface"]["provided"]["substrate"], "vm");
-    assert_eq!(first[0]["surface"]["provided"]["image"], lab.rig.image);
-    assert_eq!(first[0]["surface"]["authority"]["substrate"], "provider");
-    assert_eq!(first[0]["provider"]["identity"], "root");
-    assert_eq!(first[0]["provider"]["network"], "user_nat");
-    assert_eq!(first[0]["provider"]["resources"][0]["digest"], lab.rig.seal);
+    assert_eq!(first.frames[0]["seat"]["generation"], first.generation);
+    assert_eq!(first.frames[0]["surface"]["required"]["substrate"], "vm");
+    assert_eq!(first.frames[0]["surface"]["provided"]["substrate"], "vm");
     assert_eq!(
-        first[0]["provider"]["resources"][0]["source"],
+        first.frames[0]["surface"]["provided"]["image"],
+        lab.rig.image
+    );
+    assert_eq!(
+        first.frames[0]["surface"]["authority"]["substrate"],
+        "provider"
+    );
+    assert_eq!(first.frames[0]["provider"]["identity"], "root");
+    assert_eq!(first.frames[0]["provider"]["network"], "user_nat");
+    assert_eq!(
+        first.frames[0]["provider"]["resources"][0]["digest"],
+        lab.rig.seal
+    );
+    assert_eq!(
+        first.frames[0]["provider"]["resources"][0]["source"],
         lab.rig.origin
     );
-    assert_eq!(first[0]["provider"]["resources"][2]["class"], "private");
-    assert_eq!(code(&first), Some(2));
-    let stdout = String::from_utf8(bytes(&first, "stdout")).expect("Hardrig stdout");
-    let stderr = String::from_utf8(bytes(&first, "stderr")).expect("Hardrig stderr");
+    assert_eq!(
+        first.frames[0]["provider"]["resources"][2]["class"],
+        "private"
+    );
+    assert_eq!(
+        first.frames[0]["provider"]["resources"][4]["class"],
+        "temporary"
+    );
+    assert_eq!(frame::code(&first.frames), Some(2));
+    let stdout = String::from_utf8(frame::bytes(&first.frames, "stdout")).expect("Hardrig stdout");
+    let stderr = String::from_utf8(frame::bytes(&first.frames, "stderr")).expect("Hardrig stderr");
     assert!(stdout.contains("applied: root seed"), "{stdout}\n{stderr}");
     assert!(!lab.rig.read("/secrets/roots/liberte.top.json").is_empty());
+    first.cleanup.proves(&first.generation, FACTS);
 
     let second = lab.rig.run("second", "plan");
-    assert_eq!(code(&second), Some(0));
-    let stdout = String::from_utf8(bytes(&second, "stdout")).expect("Hardrig stdout");
+    assert_ne!(first.generation, second.generation);
+    assert_eq!(second.frames[0]["seat"]["generation"], second.generation);
+    assert_eq!(frame::code(&second.frames), Some(0));
+    let stdout = String::from_utf8(frame::bytes(&second.frames, "stdout")).expect("Hardrig stdout");
     assert!(stdout.contains("observed resource.seed: ready"), "{stdout}");
     assert!(stdout.contains("observed session.ssh: change"), "{stdout}");
+    second.cleanup.proves(&second.generation, FACTS);
     lab.finish();
 }
 
@@ -154,22 +175,26 @@ fn recovers() {
 fn loss() {
     let mut lab = Lab::new(Duration::from_secs(30));
     let guest = lab.rig.spawn("lost", "apply");
+    let generation = guest.generation().to_string();
     lab.cube.wait(4, Duration::from_secs(600));
     thread::sleep(Duration::from_secs(6));
-    guest.lose();
+    let cleanup = guest.lose();
 
     let recovered = lab.rig.run("recovered", "plan");
-    assert_eq!(code(&recovered), Some(0));
-    let stdout = String::from_utf8(bytes(&recovered, "stdout")).expect("Hardrig stdout");
+    assert_ne!(generation, recovered.generation);
+    assert_eq!(frame::code(&recovered.frames), Some(0));
+    let stdout =
+        String::from_utf8(frame::bytes(&recovered.frames, "stdout")).expect("Hardrig stdout");
     assert!(stdout.contains("observed resource.seed: ready"), "{stdout}");
     assert!(stdout.contains("observed session.ssh: change"), "{stdout}");
 
     let lost = lab.rig.frames("lost");
     assert_eq!(lost[0]["kind"], "started");
     assert!(lost.iter().all(|frame| frame["kind"] != "finished"));
-    let stdout = String::from_utf8(bytes(&lost, "stdout")).expect("Hardrig stdout");
+    let stdout = String::from_utf8(frame::bytes(&lost, "stdout")).expect("Hardrig stdout");
     assert!(stdout.contains("applied: root seed"), "{stdout}");
     assert!(!lab.rig.read("/secrets/roots/liberte.top.json").is_empty());
+    cleanup.proves(&generation, FACTS);
     lab.finish();
 }
 
@@ -178,8 +203,9 @@ fn loss() {
 fn cancels() {
     let mut lab = Lab::new(Duration::from_secs(30));
     let guest = lab.rig.spawn("cancelled", "apply");
+    let generation = guest.generation().to_string();
     lab.cube.wait(4, Duration::from_secs(600));
-    guest.cancel();
+    let cleanup = guest.cancel();
 
     let cancelled = lab.rig.frames("cancelled");
     let finished = cancelled.last().expect("finished frame");
@@ -189,14 +215,17 @@ fn cancels() {
         finished["cleanup"]["termination_signal"]["scope"],
         "process_group"
     );
-    let stdout = String::from_utf8(bytes(&cancelled, "stdout")).expect("Hardrig stdout");
+    let stdout = String::from_utf8(frame::bytes(&cancelled, "stdout")).expect("Hardrig stdout");
     assert!(stdout.contains("applied: root seed"), "{stdout}");
 
     let recovered = lab.rig.run("after-cancel", "plan");
-    assert_eq!(code(&recovered), Some(0));
-    let stdout = String::from_utf8(bytes(&recovered, "stdout")).expect("Hardrig stdout");
+    assert_ne!(generation, recovered.generation);
+    assert_eq!(frame::code(&recovered.frames), Some(0));
+    let stdout =
+        String::from_utf8(frame::bytes(&recovered.frames, "stdout")).expect("Hardrig stdout");
     assert!(stdout.contains("observed resource.seed: ready"), "{stdout}");
     assert!(stdout.contains("observed session.ssh: change"), "{stdout}");
     assert!(!lab.rig.read("/secrets/roots/liberte.top.json").is_empty());
+    cleanup.proves(&generation, FACTS);
     lab.finish();
 }

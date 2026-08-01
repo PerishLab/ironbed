@@ -2,6 +2,7 @@ use super::{
     Input,
     guest::{Guest, Spec},
     media,
+    provider::Cleanup,
 };
 use serde_json::Value;
 use std::fs::{self, File};
@@ -19,6 +20,12 @@ pub(super) struct Qemu {
     pub(super) origin: String,
     cube: u16,
     ssh: u16,
+}
+
+pub(super) struct Completed {
+    pub(super) generation: String,
+    pub(super) frames: Vec<Value>,
+    pub(super) cleanup: Cleanup,
 }
 
 impl Qemu {
@@ -50,7 +57,7 @@ impl Qemu {
         assert!(code.is_file(), "OVMF code must exist");
         let root = tempfile::tempdir().expect("VM rehearsal");
         let media = root.path().join("media.iso");
-        media::pack(&media, &input, &seal);
+        media::pack(&media, &input);
         let state = root.path().join("state.ext4");
         File::create(&state)
             .expect("private state")
@@ -77,9 +84,13 @@ impl Qemu {
         }
     }
 
-    pub(super) fn run(&self, name: &str, action: &str) -> Vec<Value> {
-        self.spawn(name, action).finish();
-        self.frames(name)
+    pub(super) fn run(&self, name: &str, action: &str) -> Completed {
+        let cleanup = self.spawn(name, action).finish();
+        Completed {
+            generation: name.to_string(),
+            frames: self.frames(name),
+            cleanup,
+        }
     }
 
     pub(super) fn spawn(&self, name: &str, action: &str) -> Guest {
@@ -90,6 +101,16 @@ impl Qemu {
         );
         assert!(matches!(action, "apply" | "plan"), "Hardrig action");
         let seat = tempfile::tempdir_in(self.root.path()).expect("VM seat");
+        let descriptor = seat.path().join("seat.iso");
+        media::seat(
+            &descriptor,
+            media::Descriptor {
+                image: &self.image,
+                seal: &self.seal,
+                origin: &self.origin,
+                generation: name,
+            },
+        );
         let vars = seat.path().join("vars.fd");
         fs::copy("/usr/share/OVMF/OVMF_VARS_4M.fd", &vars).expect("OVMF variables");
         let overlay = seat.path().join("root.qcow2");
@@ -126,6 +147,7 @@ impl Qemu {
                 overlay: &overlay,
                 state: &self.state,
                 media: &self.media,
+                descriptor: &descriptor,
                 seed: &seed,
                 serial: &serial,
                 cube: self.cube,
@@ -150,7 +172,7 @@ impl Qemu {
 
 fn cloud(name: &str, action: &str) -> String {
     format!(
-        "#cloud-config\nbootcmd:\n  - [mkdir, -p, /state, /dut]\nruncmd:\n  - [mount, -L, IRONSTATE, /state]\n  - [mount, -o, ro, -L, IRONMEDIA, /dut]\n  - [sh, -c, 'while [ ! -e /dev/virtio-ports/ironbed.cancel ]; do sleep 0.1; done; /dut/ironbed run --seat /dut/seat.json --cancel /dev/virtio-ports/ironbed.cancel < /dut/{action}.json > /state/frames-{name}.ndjson 2> /state/stderr-{name}.log']\n  - [sync]\n  - [poweroff]\n"
+        "#cloud-config\nbootcmd:\n  - [mkdir, -p, /state, /dut, /seat, /scratch]\nruncmd:\n  - [mount, -L, IRONSTATE, /state]\n  - [mount, -o, ro, -L, IRONMEDIA, /dut]\n  - [mount, -o, ro, -L, IRONSEAT, /seat]\n  - [sh, -c, 'while [ ! -e /dev/virtio-ports/ironbed.cancel ]; do sleep 0.1; done; /dut/ironbed run --seat /seat/seat.json --cancel /dev/virtio-ports/ironbed.cancel < /dut/{action}.json > /state/frames-{name}.ndjson 2> /state/stderr-{name}.log']\n  - [sync]\n  - [poweroff]\n"
     )
 }
 
