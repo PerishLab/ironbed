@@ -52,9 +52,33 @@ Runner tests separately prove that artifact transfer still completes after the
 stdout limit terminates a process, and that a preexisting target remains
 unchanged while the finished frame records failure.
 
+## Package record
+
+The next rehearsal keeps the same Actions commit but executes its real
+`package-exact/main.ts` command against Shield commit
+`03cfdbf7c267d1cf815daafe399191f485543b8a`. Deno is a third input, separate
+from both the command source and the package source.
+
+The provider clones the exact Shield commit into each attempt's scratch root.
+That workspace is intentionally writable: `package-exact` temporarily stamps
+the package manifest while rehearsing JSR publication, then restores it. The
+test verifies the complete Git workspace is clean afterward and destroys it
+with the rest of the generation.
+
+A loopback registry double returns only `404`, so the command plans a release
+without publishing a package or reserving a tag. Its deterministic
+`package-exact/v1` record is written under `RUNNER_TEMP`, transferred through
+the existing single-file artifact boundary, and retained after scratch cleanup.
+Two generations produce byte-identical records and matching artifact digests.
+
+This package pressure earns no new Ironbed field. Registry identity, package
+identity, release version, integrity, tag, URL, and planned status are consumer
+record contents. Ironbed retains only generic source declarations, process and
+log facts, artifact bytes and digest, and the terminal transfer summary.
+
 ## Authority limit
 
-The host test uses unshared random paths to demonstrate the vocabulary. It does
+The host tests use unshared random paths to demonstrate the vocabulary. They do
 not prove that a hostile child cannot discover or open the artifact target.
 Mount, container, or VM isolation for that target is a provider fact. Durable
 upload, remote acknowledgement, package meaning, Actions YAML, and Forgejo

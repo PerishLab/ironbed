@@ -4,6 +4,8 @@ mod actions;
 mod artifact;
 #[path = "run/fixture.rs"]
 mod fixture;
+#[path = "run/package.rs"]
+mod package;
 
 use fixture::{Trial, execute, launch, offer, submit, system};
 use std::path::Path;
