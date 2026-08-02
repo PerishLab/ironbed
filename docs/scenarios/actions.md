@@ -31,10 +31,11 @@ writes the exact seal beside them. A fifth resource is an artifact target. It
 is visible to Ironbed after execution but is not included in the process
 resource list.
 
-The attempt names the seal inside the scratch grant as one artifact. Ironbed
-reaps the action, copies the seal under an independent artifact byte limit,
-emits its byte count and SHA-256 digest, and only then emits the finished frame.
-The target name must be fresh and is never overwritten.
+The attempt names the seal inside the scratch grant as logical artifact `seal`
+with final basename `seal.json`. Ironbed reaps the action, copies the seal under
+an independent artifact byte limit, emits its name, byte count, and SHA-256
+digest, and only then emits the finished frame. The target name must be fresh
+and is never overwritten.
 
 ## Executable proof
 
@@ -68,13 +69,37 @@ with the rest of the generation.
 A loopback registry double returns only `404`, so the command plans a release
 without publishing a package or reserving a tag. Its deterministic
 `package-exact/v1` record is written under `RUNNER_TEMP`, transferred through
-the existing single-file artifact boundary, and retained after scratch cleanup.
-Two generations produce byte-identical records and matching artifact digests.
+the existing single-file artifact boundary as `record.json`, and retained after
+scratch cleanup. Two generations produce byte-identical records and matching
+artifact digests.
 
 This package pressure earns no new Ironbed field. Registry identity, package
 identity, release version, integrity, tag, URL, and planned status are consumer
 record contents. Ironbed retains only generic source declarations, process and
 log facts, artifact bytes and digest, and the terminal transfer summary.
+
+## Binary release build
+
+The next rehearsal executes the real stable Plumb `release build` command for
+one exact Ironbed source on `linux-x86_64`. Plumb, the exact writable source
+workspace, Cargo cache, Rust toolchain, and attempt scratch are distinct
+provider resources. Cargo runs offline and writes its target directory outside
+the source workspace.
+
+Two fresh generations build beta version `v0.1.0-beta.1` for
+`x86_64-unknown-linux-gnu`. Each attempt requests logical artifact `archive`
+with the Plumb-declared basename
+`ironbed-x86_64-unknown-linux-gnu.tar.gz`. The rehearsal verifies the artifact
+frame retains both values, extracts the archive, runs the stamped binary, and
+requires byte-identical archives across generations. Each source workspace is
+clean before its complete scratch root disappears; the named archive remains.
+
+One matrix target is one attempt. A target is accepted only with its complete
+terminal receipt, so transfer prefix failure already retires the entire target.
+The outer Actions coordinator downloads all accepted target artifacts and lets
+Plumb gather and verify the exact cross-platform set. Ironbed therefore earns a
+portable final basename, not a directory artifact or a cross-attempt
+transaction.
 
 ## Authority limit
 

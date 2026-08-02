@@ -35,7 +35,7 @@ fn package() {
         let retired = scratch.path().to_path_buf();
         let target = tempfile::tempdir().expect("artifact target");
         let frames = launch(&sources, &endpoint, scratch.path(), target.path());
-        let record = fs::read(target.path().join("record")).expect("package record");
+        let record = fs::read(target.path().join("record.json")).expect("package record");
         let document: Value = serde_json::from_slice(&record).expect("record JSON");
         assert_eq!(document["format"], "package-exact/v1");
         assert_eq!(document["product"], "shield");
@@ -55,6 +55,7 @@ fn package() {
             .find(|frame| frame["kind"] == "artifact")
             .expect("record artifact");
         assert_eq!(artifact["artifact"]["id"], "record");
+        assert_eq!(artifact["artifact"]["name"], "record.json");
         assert_eq!(artifact["artifact"]["bytes"], record.len());
         assert_eq!(
             artifact["artifact"]["digest"],
@@ -83,7 +84,7 @@ fn package() {
         records.push(record);
         drop(scratch);
         assert!(!retired.exists());
-        assert!(target.path().join("record").exists());
+        assert!(target.path().join("record.json").exists());
     }
     server.join().expect("registry fixture");
     assert_eq!(records[0], records[1]);
@@ -171,6 +172,7 @@ fn launch(sources: &Sources, endpoint: &str, scratch: &Path, target: &Path) -> V
         "resources": ["deno", "action", "workspace", "scratch"],
         "artifacts": [{
             "id": "record",
+            "name": "record.json",
             "source": record,
             "grant": "scratch",
             "target": "artifact"

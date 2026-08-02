@@ -18,6 +18,7 @@ fn artifact() {
         artifact: Some(Export {
             target: target.path(),
             limit: 8,
+            name: "artifact",
         }),
     });
     assert!(status.success());
@@ -26,6 +27,7 @@ fn artifact() {
         .find(|frame| frame["kind"] == "artifact")
         .expect("artifact frame");
     assert_eq!(frame["artifact"]["id"], "artifact");
+    assert_eq!(frame["artifact"]["name"], "artifact");
     assert_eq!(frame["artifact"]["target"], "artifact");
     assert_eq!(frame["artifact"]["bytes"], 8);
     assert_eq!(
@@ -69,6 +71,7 @@ fn independent() {
         artifact: Some(Export {
             target: target.path(),
             limit: 8,
+            name: "artifact",
         }),
     });
     assert!(status.success());
@@ -100,6 +103,7 @@ fn immutable() {
         artifact: Some(Export {
             target: target.path(),
             limit: 11,
+            name: "artifact",
         }),
     });
     assert!(status.success());
@@ -115,4 +119,39 @@ fn immutable() {
             .as_str()
             .is_some_and(|error| error.contains("already exists"))
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn names() {
+    let current = system();
+    for name in [
+        "../artifact",
+        "artifact/name",
+        "artifact\\name",
+        ".artifact",
+        "artifact.",
+        "artifact..bin",
+        "con.json",
+        "com1",
+    ] {
+        let target = tempfile::tempdir().expect("artifact target");
+        let (status, frames) = launch(Trial {
+            generation: "host-fixture",
+            required: &current,
+            provided: &current,
+            program: Path::new("/bin/sh"),
+            args: &["-c", "printf artifact > \"$IRONBED_ARTIFACT\""],
+            resources: &["program", "cwd"],
+            timeout: 5_000,
+            output: 1_048_576,
+            artifact: Some(Export {
+                target: target.path(),
+                limit: 8,
+                name,
+            }),
+        });
+        assert_eq!(status.code(), Some(2));
+        assert!(frames.is_empty());
+    }
 }

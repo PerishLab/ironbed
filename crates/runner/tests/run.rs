@@ -2,6 +2,9 @@
 mod actions;
 #[path = "run/artifact.rs"]
 mod artifact;
+#[cfg(target_os = "linux")]
+#[path = "run/build.rs"]
+mod build;
 #[path = "run/fixture.rs"]
 mod fixture;
 #[cfg(target_os = "linux")]

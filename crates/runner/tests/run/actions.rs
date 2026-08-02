@@ -58,7 +58,7 @@ fn setup() {
         );
         let seal = fs::read(fixture.path().join("seal.json")).expect("fixture seal");
         assert_eq!(
-            fs::read(target.path().join("seal")).expect("sealed artifact"),
+            fs::read(target.path().join("seal.json")).expect("sealed artifact"),
             seal
         );
         let artifact = frames
@@ -66,6 +66,7 @@ fn setup() {
             .find(|frame| frame["kind"] == "artifact")
             .expect("artifact frame");
         assert_eq!(artifact["artifact"]["id"], "seal");
+        assert_eq!(artifact["artifact"]["name"], "seal.json");
         assert_eq!(artifact["artifact"]["target"], "artifact");
         assert_eq!(
             artifact["artifact"]["digest"],
@@ -85,7 +86,7 @@ fn setup() {
         assert_eq!(finished["artifacts"]["complete"], true);
         drop(scratch);
         assert!(!retired.exists());
-        assert!(target.path().join("seal").exists());
+        assert!(target.path().join("seal.json").exists());
     }
 }
 
@@ -187,6 +188,7 @@ fn launch(context: &Context<'_>, scratch: &Path, target: &Path) -> Vec<Value> {
         "resources": ["shell", "action", "fixture", "scratch"],
         "artifacts": [{
             "id": "seal",
+            "name": "seal.json",
             "source": seal,
             "grant": "scratch",
             "target": "artifact"
