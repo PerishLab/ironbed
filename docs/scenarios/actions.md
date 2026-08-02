@@ -80,9 +80,17 @@ log facts, artifact bytes and digest, and the terminal transfer summary.
 
 The host tests use unshared random paths to demonstrate the vocabulary. They do
 not prove that a hostile child cannot discover or open the artifact target.
-Mount, container, or VM isolation for that target is a provider fact. Durable
-upload, remote acknowledgement, package meaning, Actions YAML, and Forgejo
-event interpretation remain outside Ironbed.
+Ironbed may later implement mount, container, VM, or another isolation
+mechanism and report what happened. The surrounding control plane decides
+which mechanism an attempt requires and whether the provider evidence is
+sufficient. Cold-start host delivery is explicitly best effort.
+
+The target remains attempt-scoped until a finished frame acknowledges the
+transfer summary. If the runner is lost, the provider discards that entire
+target even when final names or artifact frames are already visible; it does
+not infer completeness from either. Durable upload, remote acknowledgement,
+package meaning, Actions YAML, and Forgejo event interpretation remain outside
+Ironbed.
 
 This pressure changes only the private `v0` runner model. It does not yet earn
 an `ironbed-proto` artifact message or a public compatibility promise.
