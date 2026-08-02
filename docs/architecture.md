@@ -160,16 +160,20 @@ indeterminate external effect before deciding what to do next.
 ## Artifact boundary
 
 The private runner accepts an ordered set of single-file artifact requests. An
-artifact ID selects a fresh final name inside one supplied artifact target. Its
-source must resolve inside a required temporary grant. The target must not also
-be a process resource.
+artifact ID is the stable logical identity used by the attempt and evidence.
+One separate portable basename selects the fresh final name inside a supplied
+artifact target. Names are bounded lowercase ASCII with digits, hyphens,
+underscores, and dots; path separators, traversal, ambiguous edges, and
+platform-reserved device names are refused. The source must resolve inside a
+required temporary grant. The target must not also be a process resource.
 
 Artifact bytes have one shared limit independent from retained stdout and
 stderr. After the child is reaped, Ironbed streams each source through that
 limit, computes its SHA-256 digest, syncs and seals a fresh staging file, and
 publishes it without replacing an existing name. Artifact frames precede the
-single finished frame. The finished frame records total published bytes, the
-limit, and any transfer failure.
+single finished frame and retain both logical ID and final basename. The
+finished frame records total published bytes, the limit, and any transfer
+failure.
 
 Output exhaustion, timeout, cancellation, and ordinary process exit therefore
 share the same bounded artifact phase. A transfer failure is a terminal fact;

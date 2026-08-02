@@ -20,6 +20,7 @@ pub(super) struct Trial<'a> {
 pub(super) struct Export<'a> {
     pub(super) target: &'a Path,
     pub(super) limit: u64,
+    pub(super) name: &'a str,
 }
 
 pub(super) fn system() -> String {
@@ -61,6 +62,7 @@ pub(super) fn launch(trial: Trial<'_>) -> (std::process::ExitStatus, Vec<Value>)
             }));
             artifacts.push(json!({
                 "id": "artifact",
+                "name": export.name,
                 "source": source,
                 "grant": "cwd",
                 "target": "artifact"

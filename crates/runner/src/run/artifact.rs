@@ -1,3 +1,5 @@
+mod name;
+
 use super::seat::{Class, Resource, Seat};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -11,6 +13,7 @@ use std::path::{Component, Path};
 #[serde(deny_unknown_fields)]
 pub(super) struct Request {
     pub(super) id: String,
+    pub(super) name: String,
     pub(super) source: String,
     pub(super) grant: String,
     pub(super) target: String,
@@ -18,6 +21,7 @@ pub(super) struct Request {
 
 pub(super) struct Item {
     id: String,
+    name: String,
     target: String,
     bytes: u64,
     digest: String,
@@ -53,12 +57,22 @@ pub(super) fn validate(
         return Err("artifact_bytes must be 1 through 1073741824".to_string());
     }
     let mut ids = BTreeSet::new();
+    let mut names = BTreeSet::new();
     for request in requests {
-        if !atom(&request.id) {
+        if !name::id(&request.id) {
             return Err("artifact id must be one lowercase hyphenated atom".to_string());
         }
         if !ids.insert(&request.id) {
             return Err(format!("artifact id {} is duplicated", request.id));
+        }
+        if !name::file(&request.name) {
+            return Err(format!(
+                "artifact {} name is not one safe basename",
+                request.id
+            ));
+        }
+        if !names.insert(&request.name) {
+            return Err(format!("artifact name {} is duplicated", request.name));
         }
         let source = Path::new(&request.source);
         if !absolute(source) {
@@ -119,6 +133,7 @@ pub(super) fn frame(attempt: &str, sequence: u64, item: &Item) -> Value {
         "kind": "artifact",
         "artifact": {
             "id": item.id,
+            "name": item.name,
             "target": item.target,
             "bytes": item.bytes,
             "digest": item.digest
@@ -149,7 +164,7 @@ fn transfer(request: &Request, seat: &Seat, limit: u64) -> Result<Item, String> 
     let root = Path::new(&target.path)
         .canonicalize()
         .map_err(|error| format!("cannot resolve artifact {} target: {error}", request.id))?;
-    let destination = root.join(&request.id);
+    let destination = root.join(&request.name);
     if destination.exists() {
         return Err(format!("artifact {} target already exists", request.id));
     }
@@ -167,6 +182,7 @@ fn transfer(request: &Request, seat: &Seat, limit: u64) -> Result<Item, String> 
     let (bytes, digest) = result?;
     Ok(Item {
         id: request.id.clone(),
+        name: request.name.clone(),
         target: request.target.clone(),
         bytes,
         digest,
@@ -250,23 +266,6 @@ fn resource<'a>(seat: &'a Seat, id: &str, class: Class) -> Result<&'a Resource, 
         return Err(format!("artifact resource {id} has the wrong class"));
     }
     Ok(resource)
-}
-
-fn atom(value: &str) -> bool {
-    value.len() <= 128 && head(value) && tail(value)
-}
-
-fn head(value: &str) -> bool {
-    matches!(value.bytes().next(), Some(b'a'..=b'z'))
-}
-
-fn tail(value: &str) -> bool {
-    let bytes = value.as_bytes();
-    bytes
-        .iter()
-        .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || *byte == b'-')
-        && bytes.last().is_some_and(u8::is_ascii_alphanumeric)
-        && !bytes.windows(2).any(|pair| pair == b"--")
 }
 
 fn absolute(path: &Path) -> bool {

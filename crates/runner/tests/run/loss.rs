@@ -153,6 +153,7 @@ fn prepare(visibility: &Visibility) -> Case {
         "resources": ["program", "cwd"],
         "artifacts": [{
             "id": "artifact",
+            "name": "artifact.bin",
             "source": source,
             "grant": "cwd",
             "target": "artifact"
@@ -182,7 +183,7 @@ fn wait(target: &tempfile::TempDir, visibility: &Visibility) {
     let started = Instant::now();
     loop {
         let staging = target.path().join(".artifact.tmp").exists();
-        let published = target.path().join("artifact").exists();
+        let published = target.path().join("artifact.bin").exists();
         let visible = match visibility {
             Visibility::Staging => staging && !published,
             Visibility::Published => staging && published,
@@ -198,7 +199,7 @@ fn wait(target: &tempfile::TempDir, visibility: &Visibility) {
 
 fn inspect(target: &tempfile::TempDir, visibility: Visibility) {
     let staging = target.path().join(".artifact.tmp");
-    let published = target.path().join("artifact");
+    let published = target.path().join("artifact.bin");
     match visibility {
         Visibility::Staging => {
             assert_eq!(
@@ -247,6 +248,7 @@ fn fresh() {
         artifact: Some(Export {
             target: target.path(),
             limit: 8,
+            name: "artifact",
         }),
     });
     assert!(status.success());
