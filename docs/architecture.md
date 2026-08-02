@@ -90,10 +90,17 @@ the provider's mount, identity, network, or source assertions.
 
 An artifact target is a separate provider resource class. It is deliberately
 absent from the process resource list while the attempt names a source inside
-one required temporary grant. The provider must keep the target outside the
-child boundary; the host rehearsal uses distinct paths but does not claim to
-enforce mount isolation. Ironbed opens the target only after process
-supervision and direct-process reap.
+one required temporary grant. This is a semantic boundary: Ironbed rejects the
+target as a process resource and opens it only after process supervision and
+direct-process reap. The host rehearsal uses distinct random paths but does not
+prevent a hostile child from discovering or opening the target.
+
+Ironbed owns stronger isolation mechanisms and truthful evidence about the
+mechanism a provider exercised. A surrounding control plane owns trust
+classification, minimum assurance policy, and whether a seat is eligible for
+an attempt. Cold start remains best effort until real provider pressure earns a
+stronger mechanism; that limitation does not add security policy to the runner
+or block the host delivery line.
 
 Destroying a seat does not roll back consumer-owned private state or an
 indeterminate remote effect.
@@ -166,9 +173,16 @@ limit, and any transfer failure.
 
 Output exhaustion, timeout, cancellation, and ordinary process exit therefore
 share the same bounded artifact phase. A transfer failure is a terminal fact;
-it never causes Ironbed to repeat the process. Runner loss before that phase
-produces no artifact claim, and durable retention after publication remains a
-provider responsibility.
+it never causes Ironbed to repeat the process.
+
+The artifact target is attempt-scoped until the terminal receipt. Runner loss
+during transfer may expose only a staging file, both staging and final links,
+or even artifact frames without a finished frame. None is a durable
+acknowledgement. The provider retires the complete unacknowledged target rather
+than interpreting or repairing its contents, then gives any replacement
+attempt a fresh generation and target. An ignored Linux fault rehearsal stops
+the runner on both sides of final publication and verifies that rule. Durable
+retention after an acknowledged publication remains a provider responsibility.
 
 ## Day 0 topology
 

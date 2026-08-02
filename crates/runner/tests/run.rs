@@ -4,6 +4,9 @@ mod actions;
 mod artifact;
 #[path = "run/fixture.rs"]
 mod fixture;
+#[cfg(target_os = "linux")]
+#[path = "run/loss.rs"]
+mod loss;
 #[path = "run/package.rs"]
 mod package;
 
