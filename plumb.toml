@@ -15,10 +15,10 @@ packages = ["ironbed-proto"]
 
 [[document]]
 strategy = "agent"
-source = [{ path = ".", seal = "550da35123ccac933b7be3be3337fa5ca7fabf705f447cbd4025d096e0b18219" }]
+source = [{ path = ".", seal = "fd2931c3b784d6d0c9f9e7d2a63e5d448a8dc50c2d467d9093617ec864b0f7e5" }]
 target-seal = "dd31fcfa6d62fba145491719175752b7eb2c659ccb882ccd04d26487cf0a0384"
 
 [[document]]
 strategy = "architecture"
-source = [{ path = ".", seal = "550da35123ccac933b7be3be3337fa5ca7fabf705f447cbd4025d096e0b18219" }]
+source = [{ path = ".", seal = "fd2931c3b784d6d0c9f9e7d2a63e5d448a8dc50c2d467d9093617ec864b0f7e5" }]
 target-seal = "f88e6cf83eeaf0a7b99a2ee3daf4966044685a71194839af2ee9927f1b1cbe1d"
