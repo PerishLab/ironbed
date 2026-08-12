@@ -21,14 +21,12 @@ path = 4
 roots = [
     "crates/*/src",
     "crates/*/tests",
-    "docs",
 ]
 
 [scan]
 exclude = ["**/target/**"]
 include = [
     "crates/**/*.rs",
-    "docs/**/*.md",
 ]
 
 [word]
