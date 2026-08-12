@@ -4,15 +4,15 @@ Ironbed is the independent open execution testbed for perish.code.
 
 ## Current stage
 
-The repository contains its Plumb-governed cold-start skeleton:
+- `crates/proto` anchors the independently publishable boundary package.
+- `crates/runner` executes the private v0 attempt and seat shapes, supervises
+  process trees, emits ordered evidence, transfers bounded artifacts, and
+  closes one terminal receipt.
+- `ARCHITECTURE.md` records the current execution/provider authority split.
 
-- `crates/proto` anchors the future `ironbed-proto` package.
-- `crates/runner` anchors the `ironbed` binary and exposes only help and version.
-- `docs/architecture.md` holds the pre-model closure.
-- No attempt, lease, seat, plan, evidence, artifact, or receipt model is settled yet.
-
-The first real scenarios must pressure those words before implementation gives
-them fields or lifecycle.
+Private rehearsal shapes are executable pressure, not a public protocol
+promise. A stable contract is earned only by another implementation, language,
+release cadence, compatibility window, or amendment authority.
 
 ## Stable boundary
 
@@ -33,7 +33,7 @@ capacity, or rotation.
 - `crates/proto` — transport-neutral boundary contract; no network, storage,
   scheduler, executor, or Codehull model.
 - `crates/runner` — the executable testbed.
-- `docs` — product vocabulary, laws, scenarios, and verification.
+- `ARCHITECTURE.md` — current topology, authority, and failure boundaries.
 - `runseal.toml` / `.runseal/resources` — env-only repository-local profile
   material.
 - `.forgejo` — canonical guard and release lanes.
