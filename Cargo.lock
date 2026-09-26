@@ -221,7 +221,7 @@ dependencies = [
 
 [[package]]
 name = "ironbed"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "clap",
  "libc",
@@ -234,7 +234,7 @@ dependencies = [
 
 [[package]]
 name = "ironbed-proto"
-version = "0.1.0"
+version = "0.0.0"
 
 [[package]]
 name = "is_terminal_polyfill"
@@ -267,6 +267,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
+name = "object"
+version = "0.39.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e5a6c098c7a3b6547378093f5cc30bc54fd361ce711e05293a5cc589562739b"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -286,28 +295,34 @@ checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 
 [[package]]
 name = "plumb"
-version = "0.18.20"
-source = "sparse+https://git.perish.top/api/packages/PerishLab/cargo/"
-checksum = "00c5b867a0b69d54bf8f8ca5f5f0b12bd346cc315ace00d2c245cee90852a275"
+version = "0.47.0"
+source = "sparse+https://cargo.perish.uk/"
+checksum = "43e2f070506161de58466e0f235255313ce500348833205060234bc220b689c2"
 dependencies = [
  "base64",
  "clap",
+ "object",
  "pin-project-lite",
  "plumb-macro",
+ "semver",
  "serde",
+ "serde_json",
  "sha2",
+ "tempfile",
  "toml",
+ "which",
 ]
 
 [[package]]
 name = "plumb-macro"
-version = "0.18.20"
-source = "sparse+https://git.perish.top/api/packages/PerishLab/cargo/"
-checksum = "fdc333f0f09ff052f4142de34d3321263472af5f2852cfa39e261aca40dfe3c0"
+version = "0.47.0"
+source = "sparse+https://cargo.perish.uk/"
+checksum = "578431e66e9388016ead8d5518f68ddcb8cc6f230132a14e62aba0e40e6ca40e"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
+ "toml",
 ]
 
 [[package]]
@@ -346,6 +361,12 @@ dependencies = [
  "linux-raw-sys",
  "windows-sys",
 ]
+
+[[package]]
+name = "semver"
+version = "1.0.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a7852d02fc848982e0c167ef163aaff9cd91dc640ba85e263cb1ce46fae51cd"
 
 [[package]]
 name = "serde"
@@ -513,6 +534,15 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+
+[[package]]
+name = "which"
+version = "8.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bae2f2b2b816647a1cab1acc91f5bd20812d53cb344382635ec2181940c8034f"
+dependencies = [
+ "libc",
+]
 
 [[package]]
 name = "windows-link"

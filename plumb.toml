@@ -1,3 +1,26 @@
+[layout]
+
+[[layout.seat]]
+path = "crates/*"
+anchor = ["Cargo.toml"]
+note = "The publishable boundary contract and the runner that executes against it."
+
+[[layout.seat]]
+path = ".cargo"
+note = "Cargo registry configuration."
+
+[[layout.seat]]
+path = ".runseal"
+note = "Committed inert Runseal resources."
+
+[[layout.file]]
+name = ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml"]
+note = "Rust workspace anchors and the toolchain wharf builds with."
+
+[[layout.file]]
+name = ["ARCHITECTURE.md"]
+note = "The architecture document derived and affirmed beside the implementation."
+
 [release]
 product = "ironbed"
 authority = "https://releases.ironbed.perish.uk"
@@ -5,7 +28,6 @@ binaries = ["ironbed"]
 targets = [
   "x86_64-unknown-linux-gnu",
   "aarch64-apple-darwin",
-  "x86_64-apple-darwin",
   "x86_64-pc-windows-msvc",
 ]
 
