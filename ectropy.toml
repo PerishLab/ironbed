@@ -2,7 +2,10 @@
 allow = false
 
 [[grant]]
-paths = ["crates/*/tests/**/*.rs"]
+paths = [
+    "crates/*/src/**/*.rs",
+    "crates/*/tests/**/*.rs",
+]
 syntax = "test"
 
 [[grant]]
@@ -15,7 +18,7 @@ fanout = 10
 file = 300
 markup = 8
 param = 4
-path = 4
+path = 3
 
 [module]
 roots = [

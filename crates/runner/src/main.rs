@@ -26,6 +26,10 @@ enum Command {
 }
 
 fn main() -> ExitCode {
+    if let Err(error) = plumb::identity!("IRONBED") {
+        eprintln!("ironbed: {error}");
+        return ExitCode::FAILURE;
+    }
     match Cli::parse().command {
         Some(Command::Run { seat, cancel }) => run::start(&seat, cancel.as_deref()),
         None => ExitCode::SUCCESS,

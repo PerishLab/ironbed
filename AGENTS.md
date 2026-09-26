@@ -36,11 +36,23 @@ capacity, or rotation.
 - `ARCHITECTURE.md` — current topology, authority, and failure boundaries.
 - `runseal.toml` / `.runseal/resources` — env-only repository-local profile
   material.
-- `.forgejo` — canonical guard and release lanes.
 
 Day 0 keeps proto and runner in one repository and release train. A separate
 proto repository is earned only by independent compatibility, consumer, or
 amendment pressure.
+
+## Release
+
+`plumb.toml` declares the product `ironbed`, its authority, the binary
+`ironbed` for three targets, and the cargo attachment `ironbed-proto` on the
+perish registry. The workspace declares version `0.0.0`; `crates/runner`
+carries the release identity region through `plumb::identity!("IRONBED")`,
+which wharf binds after an unbound build. A release follows Plumb's lifecycle:
+`plumb release open` cuts `release/<version>` from a guarded `main`,
+`plumb release stamp` marks it, and `plumb ship dispatch` hands the marker to
+wharf. A stable's changelog is consigned to the Depot with
+`plumb depot consign --kind changelog`; `plumb release owed` lists what is
+still owed.
 
 ## Operating
 
