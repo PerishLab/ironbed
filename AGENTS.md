@@ -54,7 +54,7 @@ Depot.
 ## Operating
 
 - Never commit directly on `main`.
-- Work on a task branch and land through the managed task substrate.
+- Work on a topic branch and land through Concord's Issue-led delivery.
 - Before landing, run `plumb doctor .`, `cargo fmt --all --check`,
   `cargo clippy --locked --workspace --all-targets -- -D warnings`,
   `cargo check --locked --workspace --all-targets --release`,
