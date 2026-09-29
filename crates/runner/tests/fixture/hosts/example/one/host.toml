@@ -1,12 +1,15 @@
-schema = "hardrig.host/v1"
+schema = "hardrig.host/v12"
 id = "example.one"
+resources = ["storage", "k3s"]
 
-[cube]
+[provider]
+kind = "cube"
 target = "http://127.0.0.1:9/"
 credential = "example"
 host = 42
 
 [ssh]
+dialect = "posix"
 alias = "one.example"
 user = "root"
 port = 22
@@ -22,4 +25,7 @@ options = ["defaults"]
 version = "v1.0.0+k3s1"
 checksum = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 storage = "/mnt/k3s/local-path"
-mode = "0600"
+sans = []
+
+[addresses.k3s]
+source = "provider"

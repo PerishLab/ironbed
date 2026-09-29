@@ -7,11 +7,8 @@ pub(super) fn fixture(root: &Path, target: &str, port: u16, user: &str) {
         .replace("http://127.0.0.1:9/", target)
         .replace("user = \"root\"", &format!("user = \"{user}\""))
         .replace("port = 22", &format!("port = {port}"));
-    let cluster = include_str!("../fixture/clusters/liberte.top/cluster.toml");
     fs::create_dir_all(root.join("hosts/example/one")).expect("host root");
-    fs::create_dir_all(root.join("clusters/liberte.top")).expect("cluster root");
     fs::write(root.join("hosts/example/one/host.toml"), host).expect("host model");
-    fs::write(root.join("clusters/liberte.top/cluster.toml"), cluster).expect("cluster model");
 }
 
 pub(super) fn state(root: &Path) {
