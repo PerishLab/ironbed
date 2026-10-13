@@ -188,13 +188,14 @@ dependencies = [
 
 [[package]]
 name = "getrandom"
-version = "0.4.3"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "300e883d756b2e4ec94e02791f39b04b522276138852cfc41d9fb7e904106099"
+checksum = "899def5c37c4fd7b2664648c28120ecec138e4d395b459e5ca34f9cce2dd77fd"
 dependencies = [
  "cfg-if",
  "libc",
  "r-efi",
+ "wasip2",
 ]
 
 [[package]]
@@ -225,6 +226,7 @@ version = "0.0.0"
 dependencies = [
  "clap",
  "libc",
+ "locus",
  "plumb",
  "serde",
  "serde_json",
@@ -261,6 +263,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 
 [[package]]
+name = "locus"
+version = "0.7.0"
+source = "sparse+https://cargo.perish.uk/"
+checksum = "0930d765b9f6d3df3925c6085ddc9346be8737d288a83539aa90e34aafc0e323"
+dependencies = [
+ "getrandom",
+ "locus-macro",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "locus-macro"
+version = "0.7.0"
+source = "sparse+https://cargo.perish.uk/"
+checksum = "6a8e74c677256e7d864fe901f27613d8831989071924e608ac115899560f3506"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -295,9 +320,9 @@ checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 
 [[package]]
 name = "plumb"
-version = "0.88.0"
+version = "0.95.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "71ce7fe4d68c3cac2bfd96ee06b8f9bb2ad8c8cf1171243cc8c73d9a1bfff02c"
+checksum = "e2e79b22e1fe8fd143aa069b16f1380fad719cc6d20a6621e01e19832a8d1245"
 dependencies = [
  "base64",
  "clap",
@@ -317,9 +342,9 @@ dependencies = [
 
 [[package]]
 name = "plumb-macro"
-version = "0.88.0"
+version = "0.95.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "e80671728c5b3f2d752512f4dbe45da5200783919372139e92d408b2522638cc"
+checksum = "6fc75f388d9bb1b826c986c5f1d0dd973347cc33d069356a8b123893d1461505"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -347,9 +372,9 @@ dependencies = [
 
 [[package]]
 name = "r-efi"
-version = "6.0.0"
+version = "5.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
+checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
 
 [[package]]
 name = "rustix"
@@ -576,6 +601,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
+name = "wasip2"
+version = "1.0.4+wasi-0.2.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b67efb37e106e55ce722a510d6b5f9c17f083e5fc79afc2badeb12cc313d9487"
+dependencies = [
+ "wit-bindgen",
+]
+
+[[package]]
 name = "which"
 version = "8.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -613,6 +647,12 @@ name = "winnow"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "23b97319f7b8343df12cc98938e5c3eb436064524c8d2b4e30a1d3a36eecdf81"
+
+[[package]]
+name = "wit-bindgen"
+version = "0.57.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
 
 [[package]]
 name = "zmij"

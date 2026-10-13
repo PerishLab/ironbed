@@ -11,6 +11,7 @@ repository = "https://github.com/PerishLab/ironbed"
 [workspace.dependencies]
 clap = { version = "4", features = ["derive"] }
 libc = "0.2"
+locus = { version = "0", registry = "perish" }
 plumb = { version = "0", registry = "perish" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

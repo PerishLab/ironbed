@@ -29,8 +29,13 @@ const ARCH: &str = "aarch64";
 #[cfg(target_arch = "x86_64")]
 const ARCH: &str = "x86_64";
 
-pub fn start(seat: &Path, cancel: Option<&Path>) -> ExitCode {
-    match execute(seat, cancel) {
+#[locus::trace(with = observer.map(crate::observation::Run::view))]
+pub fn start(
+    seat: &Path,
+    cancel: Option<&Path>,
+    observer: Option<&crate::observation::Run>,
+) -> ExitCode {
+    match execute(seat, cancel, observer) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("ironbed: {error}");
@@ -39,7 +44,12 @@ pub fn start(seat: &Path, cancel: Option<&Path>) -> ExitCode {
     }
 }
 
-fn execute(path: &Path, control: Option<&Path>) -> Result<(), String> {
+#[locus::trace(with = observer.map(crate::observation::Run::view))]
+fn execute(
+    path: &Path,
+    control: Option<&Path>,
+    observer: Option<&crate::observation::Run>,
+) -> Result<(), String> {
     let attempt = Attempt::read()?;
     let seat = seat::read(path)?;
     attempt.validate(&seat)?;

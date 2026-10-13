@@ -21,8 +21,10 @@ note = "Rust workspace anchors."
 name = ["ARCHITECTURE.md"]
 note = "The architecture document derived and affirmed beside the implementation."
 
+[identity]
+ns = "ironbed"
+
 [release]
-product = "ironbed"
 authority = "https://releases.ironbed.perish.uk"
 binaries = ["ironbed"]
 targets = [
