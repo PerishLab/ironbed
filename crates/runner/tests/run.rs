@@ -10,6 +10,8 @@ mod fixture;
 #[cfg(target_os = "linux")]
 #[path = "run/loss.rs"]
 mod loss;
+#[path = "run/observation.rs"]
+mod observation;
 #[path = "run/package.rs"]
 mod package;
 
