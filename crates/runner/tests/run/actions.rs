@@ -4,7 +4,6 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::Write;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -120,14 +119,10 @@ fn prepare(root: &Path) {
     )
     .expect("fixture manager");
     let curl = bin.join("curl");
-    fs::write(
+    plumb::testing::executable(
         &curl,
         "#!/usr/bin/env sh\nset -eu\nurl=\nout=\nwhile [ \"$#\" -gt 0 ]; do\n  case \"$1\" in\n    -o) out=$2; shift 2 ;;\n    http*) url=$1; shift ;;\n    *) shift ;;\n  esac\ndone\ncase \"$url\" in\n  */seal.json) cp \"$FAKE_SEAL\" \"$out\" ;;\n  *) cp \"$FAKE_MANAGER\" \"$out\" ;;\nesac\n",
-    )
-    .expect("fixture curl");
-    let mut permissions = fs::metadata(&curl).expect("curl metadata").permissions();
-    permissions.set_mode(0o755);
-    fs::set_permissions(&curl, permissions).expect("curl permissions");
+    );
     fs::write(
         root.join("seal.json"),
         "{\n  \"managers\": {\n    \"unix\": {\n      \"url\": \"https://objects.example.test/manage.sh\"\n    }\n  }\n}\n",

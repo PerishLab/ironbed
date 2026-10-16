@@ -21,4 +21,5 @@ serde_json.workspace = true
 sha2.workspace = true
 
 [dev-dependencies]
+plumb = { workspace = true, features = ["testing"] }
 tempfile.workspace = true
