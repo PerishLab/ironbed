@@ -58,6 +58,11 @@ fn buffered() {
             10
         );
     }
+    assert!(
+        atoms
+            .iter()
+            .all(|atom| atom["context"].get("ironbed.fault").is_none())
+    );
     let text = serde_json::to_string(&atoms).unwrap();
     for private in [
         "private-attempt",
@@ -100,6 +105,24 @@ fn isolated() {
         fixture::frames(&result).last().unwrap()["cleanup"]["direct_process_reaped"],
         true
     );
+}
+
+#[test]
+fn parity() {
+    let fixture = Fixture::new();
+    let idle = fixture.invoke(None);
+    let run = fixture.invoke(Some(&["unknown"]));
+    let refused = fixture.refuse();
+    fixture.configure(ENABLED);
+    let observed = fixture.invoke(None);
+    assert_eq!(observed.status.code(), idle.status.code());
+    assert_eq!(observed.stdout, idle.stdout);
+    let observed = fixture.invoke(Some(&["unknown"]));
+    assert_eq!(observed.status.code(), run.status.code());
+    fixture::same(&observed, &run);
+    let observed = fixture.refuse();
+    assert_eq!(observed.status.code(), refused.status.code());
+    assert_eq!(observed.stdout, refused.stdout);
 }
 
 #[cfg(unix)]

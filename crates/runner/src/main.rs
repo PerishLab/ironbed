@@ -34,18 +34,18 @@ fn main() -> ExitCode {
     }
     let command = Cli::parse().command;
     let name = if command.is_some() { "run" } else { "idle" };
-    let observer = observation::Run::start(name);
-    let code = execute(command, observer.as_ref());
+    let observer = observation::start(name);
+    let code = execute(command);
     if let Some(observer) = observer {
         observer.finish(if code == ExitCode::SUCCESS { 0 } else { 2 });
     }
     code
 }
 
-#[locus::trace(with = observer.map(observation::Run::view))]
-fn execute(command: Option<Command>, observer: Option<&observation::Run>) -> ExitCode {
+#[locus::trace(with = plumb::observation::view())]
+fn execute(command: Option<Command>) -> ExitCode {
     match command {
-        Some(Command::Run { seat, cancel }) => run::start(&seat, cancel.as_deref(), observer),
+        Some(Command::Run { seat, cancel }) => run::start(&seat, cancel.as_deref()),
         None => ExitCode::SUCCESS,
     }
 }
