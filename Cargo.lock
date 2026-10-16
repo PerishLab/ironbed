@@ -320,9 +320,9 @@ checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 
 [[package]]
 name = "plumb"
-version = "0.101.0"
+version = "0.102.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "df7438a3d8c1a6bd1bf66cef2a1570fe1d104de83465f939cc9d4803c81e5420"
+checksum = "c2da85326772dd42b80701b17cc586dd634566ac234066451c7ac3ee52784d0b"
 dependencies = [
  "base64",
  "clap",
@@ -343,9 +343,9 @@ dependencies = [
 
 [[package]]
 name = "plumb-macro"
-version = "0.101.0"
+version = "0.102.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "dfb82fd505eacd805614ad7ebfe33f0b194a08391de2a8883fbe91b85fc8e732"
+checksum = "718d62199851b6b181a923993ccab5ca934e54116186751de0e32e097a2c098b"
 dependencies = [
  "proc-macro2",
  "quote",
