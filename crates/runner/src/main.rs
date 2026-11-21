@@ -10,7 +10,7 @@ use std::process::ExitCode;
     name = "ironbed",
     version = plumb::version!("IRONBED"),
     about = "Open execution testbed",
-    after_help = "CLI observation is disabled by default. Set [locus] enabled = true in config.toml under the platform data home for ironbed (~/.ironbed on Unix, LOCALAPPDATA/ironbed on Windows). Buffered observations use state/locus there. endpoint in [locus] overrides LOCUS_API, then http://127.0.0.1:43308. Observation failures preserve execution frames, cleanup and exit status."
+    after_help = "CLI observation is disabled by default. Set [locus] enabled = true in config.toml under the platform data home for ironbed (~/.ironbed on Unix, LOCALAPPDATA/ironbed on Windows). The default HTTP receiver at http://127.0.0.1:43308 uses state/locus under that home. For HTTPS, set endpoint and an absolute writer key_file in [locus]. The recovery queue is state/locus.https/ironbed under the same home. On Unix, sender can name an absolute Locus executable. With all three unset, LOCUS_API, LOCUS_API_KEY_FILE and LOCUS_SENDER supply the settings. Observation failures preserve execution frames, cleanup and exit status."
 )]
 struct Cli {
     #[command(subcommand)]
